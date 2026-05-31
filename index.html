@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>محفظتي - الوضع الليلي (فارغة)</title>
+<title>My Portfolio - Dark Mode</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
@@ -45,8 +45,10 @@
     .transaction-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;color:#e2e8f0;}
     .eye-icon{font-size:24px;cursor:pointer;background:rgba(255,255,255,0.1);border:none;width:auto;padding:8px 12px;margin-right:auto;border-radius:50px;color:white;}
     .eye-icon:hover{background:rgba(255,255,255,0.2);}
+    .manual-return-card{ background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid #3b82f6; }
+    .manual-return-card .card-header{ border-right-color: #f59e0b; }
+    .success-badge{ color: #10b981; font-size: 12px; margin-top: 8px; display: inline-block; }
     
-    /* إخفاء كل حاجة */
     .hide-numbers .value-large,
     .hide-numbers .stock-profit-row,
     .hide-numbers .return-number,
@@ -75,86 +77,129 @@
     .modal-box p{font-size:13px;color:#94a3b8;margin-bottom:20px;line-height:1.8;}
     .modal-btns{display:flex;gap:12px;}
     .modal-btns button{flex:1;padding:12px;}
+    .import-box{background:#0f172a;border:2px dashed #3b82f6;border-radius:16px;padding:16px;text-align:center;margin-top:10px;cursor:pointer;}
+    .date-filter-row{display:flex;gap:8px;margin-top:10px;}
+    .date-filter-row input{flex:1;}
+    .import-result{margin-top:10px;font-size:12px;color:#10b981;text-align:center;font-weight:600;}
+
+    html[dir="ltr"] .card-header {
+        border-right: none;
+        border-left: 4px solid #3b82f6;
+        padding-right: 0;
+        padding-left: 12px;
+    }
+    html[dir="ltr"] .transaction-item {
+        border-right: none;
+        border-left: 3px solid #ef4444;
+    }
+    html[dir="ltr"] .stocks-table th {
+        text-align: left;
+    }
 </style>
 </head>
 <body>
 <div class="modal-overlay" id="resetModal">
     <div class="modal-box">
-        <h3>🗑️ إعادة تعيين المحفظة</h3>
-        <p>هتمسح المحفظة كلها<br>الأسهم، الفلوس، الأرباح، كل حاجة<br><strong style="color:#ef4444;">مفيش رجعة!</strong></p>
+        <h3 id="resetModalTitle">🗑️ Reset Portfolio</h3>
+        <p id="resetModalText">This will delete everything<br>Stocks, cash, profits, all data<br><strong style="color:#ef4444;">This cannot be undone!</strong></p>
         <div class="modal-btns">
-            <button class="btn-secondary" onclick="closeResetModal()">إلغاء</button>
-            <button class="btn-danger" onclick="confirmReset()">امسح كل حاجة</button>
+            <button class="btn-secondary" id="resetCancelBtn" onclick="closeResetModal()">Cancel</button>
+            <button class="btn-danger" id="resetConfirmBtn" onclick="confirmReset()">Delete All</button>
         </div>
     </div>
 </div>
 <div class="container">
     <div class="card" style="text-align:center; background:linear-gradient(135deg,#0f172a,#1e293b); display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #3b82f6;">
-        <div style="font-size:20px; font-weight:800;">📊 محفظتي</div>
+        <div style="font-size:20px; font-weight:800;" id="walletTitle">📊 My Portfolio</div>
         <div style="display:flex; gap:8px;">
-            <button class="eye-icon" onclick="toggleHideNumbers()">👁️</button>
-            <button class="eye-icon" style="background:rgba(239,68,68,0.2); color:#ef4444;" onclick="resetWallet()">🗑️</button>
+            <button class="eye-icon" id="langBtn" onclick="toggleLang()">🌐 ع</button>
+            <button class="eye-icon" id="hideBtn" onclick="toggleHideNumbers()">👁️</button>
+            <button class="eye-icon" id="resetBtn" style="background:rgba(239,68,68,0.2); color:#ef4444;" onclick="resetWallet()">🗑️</button>
         </div>
     </div>
+    
+    <!-- ✅ الكارد الجديد: إجمالي العوائد (يدوي) لمرة واحدة -->
+    <div class="card manual-return-card" id="manualReturnCard">
+        <div class="card-header" id="manualReturnHeader">🎯 Manual Total Return (One Time)</div>
+        <div id="manualReturnMsg" style="font-size:12px; color:#f59e0b; margin-bottom:8px;"></div>
+        <input type="number" id="manualReturnAmount" placeholder="Enter your current total return">
+        <button id="applyManualReturnBtn" onclick="applyManualReturn()" style="background:#f59e0b; margin-top:10px;">✅ Apply & Calculate</button>
+        <div id="manualReturnDone" style="display:none;" class="success-badge">✓ Already applied</div>
+    </div>
+
     <div class="card">
-        <div class="card-header">💰 الرصيد المتاح</div>
-        <div class="value-large blue" id="freeCashDisplay">0 ج</div>
+        <div class="card-header" id="balanceHeader">💰 Available Balance</div>
+        <div class="value-large blue" id="freeCashDisplay">0 EGP</div>
         <hr>
-        <div class="label-sm">📥 صافي الإيداع</div>
-        <div class="value-large" id="netDeposit" style="font-size:22px;">0 ج</div>
+        <div class="label-sm" id="netDepositLabel">📥 Net Deposit</div>
+        <div class="value-large" id="netDeposit" style="font-size:22px;">0 EGP</div>
     </div>
     <div class="card">
-        <div class="card-header">➕ إيداع / سحب</div>
-        <input type="number" id="moneyAmount" placeholder="المبلغ">
+        <div class="card-header" id="depositHeader">➕ Deposit / Withdraw</div>
+        <input type="number" id="moneyAmount" placeholder="Amount">
         <div class="row-2col">
-            <button class="btn-success" onclick="processDeposit()">💰 إيداع</button>
-            <button class="btn-danger" onclick="processWithdraw()">💸 سحب</button>
+            <button class="btn-success" id="depositBtn" onclick="processDeposit()">💰 Deposit</button>
+            <button class="btn-danger" id="withdrawBtn" onclick="processWithdraw()">💸 Withdraw</button>
         </div>
     </div>
     <div class="card">
-        <div class="card-header">📈 إجمالي العائد</div>
-        <div class="value-large" id="totalReturn">0 ج</div>
+        <div class="card-header" id="totalReturnHeader">📈 Total Return</div>
+        <div class="value-large" id="totalReturn">0 EGP</div>
         <hr>
-        <div class="label-sm">🏦 قيمة المحفظة</div>
-        <div class="value-large blue" id="portfolioValue">0 ج</div>
+        <div class="label-sm" id="portfolioValueLabel">🏦 Portfolio Value</div>
+        <div class="value-large blue" id="portfolioValue">0 EGP</div>
     </div>
     <div class="card">
-        <div class="card-header">📅 أرباح اليوم</div>
+        <div class="card-header" id="dailyProfitHeader">📅 Daily Profit</div>
         <input type="date" id="realDatePicker" style="margin-bottom:10px;">
-        <button class="btn-secondary" onclick="loadDailyProfitByDate()">عرض أرباح هذا التاريخ</button>
-        <div id="selectedDateProfitDisplay" class="return-number">— ج</div>
+        <button class="btn-secondary" id="showProfitBtn" onclick="loadDailyProfitByDate()">Show Profit for this Date</button>
+        <div id="selectedDateProfitDisplay" class="return-number">— EGP</div>
     </div>
     <div class="card">
-        <div class="card-header">➕ إضافة سهم</div>
+        <div class="card-header" id="importHeader">📥 Import CSV from Tilda</div>
+        <div class="date-filter-row">
+            <input type="date" id="fromDate" placeholder="From">
+            <input type="date" id="toDate" placeholder="To">
+        </div>
+        <div class="import-box" onclick="document.getElementById('csvInput').click()">
+            <div style="font-size:28px;">📂</div>
+            <div id="csvFileName" style="font-size:13px;color:#94a3b8;margin-top:6px;">Tap to choose CSV file</div>
+        </div>
+        <input type="file" id="csvInput" accept=".csv" style="display:none;" onchange="csvFileSelected(this)">
+        <button id="importNowBtn" onclick="runCSVImport()" style="background:#10b981;margin-top:10px;">📥 Import Now</button>
+        <div id="importResult" class="import-result"></div>
+    </div>
+    <div class="card">
+        <div class="card-header" id="addStockHeader">➕ Add Stock</div>
         <div class="add-stock-row">
-            <input type="text" id="newStockName" placeholder="الاسم">
-            <input type="number" id="newStockQty" placeholder="الكمية">
-            <input type="number" id="newStockBuy" placeholder="سعر الشراء">
+            <input type="text" id="newStockName" placeholder="Name">
+            <input type="number" id="newStockQty" placeholder="Quantity">
+            <input type="number" id="newStockBuy" placeholder="Buy Price">
             <input type="date" id="newStockDate">
         </div>
-        <button onclick="addNewStock()" style="background:#8b5cf6;">➕ أضف</button>
+        <button onclick="addNewStock()" style="background:#8b5cf6;" id="addStockBtn">➕ Add</button>
     </div>
     <div class="card">
-        <div class="card-header">📋 الأسهم</div>
+        <div class="card-header" id="stocksHeader">📋 Stocks</div>
         <div class="table-wrapper">
             <table class="stocks-table">
-                <thead><th>السهم</th><th>الكمية</th><th>متوسط الشراء</th><th>السعر الحالي</th><th>الربح/الخسارة</th></thead>
+                <thead id="stocksTableHeader"><tr><th id="thName">Stock</th><th id="thQty">Quantity</th><th id="thAvgBuy">Avg Buy</th><th id="thCurrent">Current Price</th><th id="thProfitLoss">Profit/Loss</th></thead>
                 <tbody id="stocksGrid"></tbody>
             </table>
         </div>
-        <button id="updateAllBtn" style="margin-top:16px; background:#10b981; padding:12px;" onclick="updatePrices()">🔄 تحديث الأسعار</button>
+        <button id="updateAllBtn" style="margin-top:16px; background:#10b981; padding:12px;" onclick="updatePrices()">🔄 Update Prices</button>
     </div>
     <div class="card">
-        <div class="card-header">📆 سجل الأرباح</div>
+        <div class="card-header" id="historyHeader">📆 Profit History</div>
         <div id="historyDatesContainer" class="history-badges"></div>
         <div id="dailyReturnMessage" style="font-size:13px; margin-top:8px; text-align:center; color:#94a3b8;"></div>
     </div>
     <div class="card">
-        <div class="card-header">📊 العائد التراكمي</div>
+        <div class="card-header" id="chartHeader">📊 Cumulative Return</div>
         <canvas id="profitChart"></canvas>
     </div>
     <div class="card">
-        <div class="card-header">📋 المعاملات (شراء وبيع)</div>
+        <div class="card-header" id="transactionsHeader">📋 Transactions (Buy/Sell)</div>
         <div id="transactionsList" style="max-height:250px; overflow-y:auto;"></div>
     </div>
 </div>
@@ -164,19 +209,43 @@
     let freeCash = 0;
     let portfolio = [];
     let dailyProfitsMap = {};
-    let sellTransactions = []; // اسمه اتفضل كده للحفظ بس بيشمل شراء وبيع
+    let sellTransactions = [];
     let chartInstance = null;
     let hideNumbers = false;
+    let currentLang = 'en';
+    
+    // ✅ متغير جديد: هل تم إدخال إجمالي العوائد يدويًا؟
+    let manualReturnApplied = false;
+    let manualReturnValue = 0;
+
+    function getSelectedDate() {
+        let date = document.getElementById('realDatePicker').value;
+        if (!date) {
+            date = new Date().toISOString().slice(0,10);
+            document.getElementById('realDatePicker').value = date;
+        }
+        return date;
+    }
 
     function stocksValue() { return portfolio.reduce((sum, s) => sum + (s.qty * s.current), 0); }
     function totalPortfolioValue() { return stocksValue() + freeCash; }
     function getNetDeposit() { return totalDeposits - totalWithdraws; }
+    
+    // ✅ إجمالي العائد الحقيقي
+    function getTotalReturn() {
+        if(manualReturnApplied) {
+            // بعد التطبيق اليدوي، إجمالي العائد = القيمة الحالية للمحفظة - صافي الإيداع
+            return totalPortfolioValue() - getNetDeposit();
+        }
+        // قبل التطبيق اليدوي: صفر افتراضيًا
+        return totalPortfolioValue() - getNetDeposit();
+    }
 
     function addSellTransaction(name, qty, sellPrice, buyPrice, date) {
         const profit = qty * (sellPrice - buyPrice);
         const profitPercent = (profit / (qty * buyPrice)) * 100;
         sellTransactions.unshift({ type:'sell', name, qty, sellPrice, buyPrice, profit, profitPercent, date, timestamp: Date.now() });
-        if(sellTransactions.length > 50) sellTransactions.pop();
+        while(sellTransactions.length > 100) sellTransactions.pop();
         renderSellTransactions();
         saveToLocal();
     }
@@ -184,7 +253,7 @@
     function addBuyTransaction(name, qty, price, date) {
         const total = qty * price;
         sellTransactions.unshift({ type:'buy', name, qty, price, total, date, timestamp: Date.now() });
-        if(sellTransactions.length > 50) sellTransactions.pop();
+        while(sellTransactions.length > 100) sellTransactions.pop();
         renderSellTransactions();
         saveToLocal();
     }
@@ -194,38 +263,40 @@
         if(!container) return;
         container.innerHTML = '';
         if(sellTransactions.length === 0) {
-            container.innerHTML = '<div class="label-sm" style="text-align:center;">لا توجد معاملات مسجلة</div>';
+            container.innerHTML = '<div class="label-sm" style="text-align:center;" id="noTransactionsMsg">' + (currentLang === 'ar' ? 'لا توجد معاملات مسجلة' : 'No transactions recorded') + '</div>';
             return;
         }
         sellTransactions.forEach(t => {
             const div = document.createElement('div');
             div.className = 'transaction-item';
             if(t.type === 'buy') {
-                div.style.borderRight = '3px solid #10b981';
+                div.style.borderRight = currentLang === 'ar' ? '3px solid #10b981' : '';
+                div.style.borderLeft = currentLang === 'en' ? '3px solid #10b981' : '';
                 div.innerHTML = `
                     <div class="transaction-row">
-                        <span style="font-weight:700; color:#10b981;">🟢 شراء</span>
+                        <span style="font-weight:700; color:#10b981;">${currentLang === 'ar' ? '🟢 شراء' : '🟢 Buy'}</span>
                         <span>${t.name}</span>
-                        <span class="transaction-qty">${t.qty} سهم</span>
+                        <span class="transaction-qty">${t.qty} ${currentLang === 'ar' ? 'سهم' : 'shares'}</span>
                         <span>${t.date}</span>
                     </div>
                     <div class="transaction-details" style="margin-top:6px; font-size:12px;">
-                        سعر الشراء: ${t.price} ج | الإجمالي: <span style="color:#ef4444;">-${t.total.toFixed(2)} ج</span>
+                        ${currentLang === 'ar' ? 'سعر الشراء' : 'Buy Price'}: ${t.price} ${currentLang === 'ar' ? 'ج' : 'EGP'} | ${currentLang === 'ar' ? 'الإجمالي' : 'Total'}: <span style="color:#ef4444;">-${t.total.toFixed(2)} ${currentLang === 'ar' ? 'ج' : 'EGP'}</span>
                     </div>
                 `;
             } else {
-                div.style.borderRight = '3px solid #ef4444';
+                div.style.borderRight = currentLang === 'ar' ? '3px solid #ef4444' : '';
+                div.style.borderLeft = currentLang === 'en' ? '3px solid #ef4444' : '';
                 div.innerHTML = `
                     <div class="transaction-row">
-                        <span style="font-weight:700; color:#ef4444;">🔴 بيع</span>
+                        <span style="font-weight:700; color:#ef4444;">${currentLang === 'ar' ? '🔴 بيع' : '🔴 Sell'}</span>
                         <span>${t.name}</span>
-                        <span class="transaction-qty">${t.qty} سهم</span>
+                        <span class="transaction-qty">${t.qty} ${currentLang === 'ar' ? 'سهم' : 'shares'}</span>
                         <span>${t.date}</span>
                     </div>
                     <div class="transaction-details" style="margin-top:6px; font-size:12px;">
-                        سعر البيع: ${t.sellPrice} ج | سعر الشراء: ${t.buyPrice} ج<br>
-                        المكسب: <span style="color:${t.profit>=0?'#10b981':'#ef4444'}">${t.profit>=0?'+':''}${t.profit.toFixed(2)} ج</span>
-                        | النسبة: ${t.profitPercent>=0?'+':''}${t.profitPercent.toFixed(2)}%
+                        ${currentLang === 'ar' ? 'سعر البيع' : 'Sell Price'}: ${t.sellPrice} ${currentLang === 'ar' ? 'ج' : 'EGP'} | ${currentLang === 'ar' ? 'سعر الشراء' : 'Buy Price'}: ${t.buyPrice} ${currentLang === 'ar' ? 'ج' : 'EGP'}<br>
+                        ${currentLang === 'ar' ? 'المكسب' : 'Profit'}: <span style="color:${t.profit>=0?'#10b981':'#ef4444'}">${t.profit>=0?'+':''}${t.profit.toFixed(2)} ${currentLang === 'ar' ? 'ج' : 'EGP'}</span>
+                        | ${currentLang === 'ar' ? 'النسبة' : 'Percent'}: ${t.profitPercent>=0?'+':''}${t.profitPercent.toFixed(2)}%
                     </div>
                 `;
             }
@@ -253,18 +324,16 @@
             updateChart();
         }
         renderSellTransactions();
+        saveToLocal();
     };
 
     function addToDailyProfit(amount, silent=false) {
-        let date = document.getElementById('realDatePicker').value;
-        if (!date) {
-            date = new Date().toISOString().slice(0,10);
-            document.getElementById('realDatePicker').value = date;
-        }
+        let date = getSelectedDate();
         if (dailyProfitsMap[date]) dailyProfitsMap[date] += amount;
         else dailyProfitsMap[date] = amount;
         if(!silent) {
-            document.getElementById('selectedDateProfitDisplay').innerHTML = (dailyProfitsMap[date] >= 0 ? '+' : '') + dailyProfitsMap[date].toFixed(2) + ' ج';
+            const currency = currentLang === 'ar' ? ' ج' : ' EGP';
+            document.getElementById('selectedDateProfitDisplay').innerHTML = (dailyProfitsMap[date] >= 0 ? '+' : '') + dailyProfitsMap[date].toFixed(2) + currency;
             document.getElementById('selectedDateProfitDisplay').style.color = dailyProfitsMap[date] >= 0 ? '#10b981' : '#ef4444';
         }
         renderHistoryDates();
@@ -277,7 +346,8 @@
         const percent = stock.buy > 0 ? (profit / (stock.qty * stock.buy)) * 100 : 0;
         const color = profit >= 0 ? '#10b981' : '#ef4444';
         const sign = profit >= 0 ? '+' : '';
-        return `<div class="stock-profit-row" style="color:${color};">${sign}${profit.toFixed(2)} ج (${sign}${percent.toFixed(2)}%)</div>`;
+        const currency = currentLang === 'ar' ? ' ج' : ' EGP';
+        return `<div class="stock-profit-row" style="color:${color};">${sign}${profit.toFixed(2)}${currency} (${sign}${percent.toFixed(2)}%)</div>`;
     }
 
     function renderStocksTable() {
@@ -285,10 +355,11 @@
         tbody.innerHTML = '';
         portfolio.forEach((stock, idx) => {
             const row = tbody.insertRow();
+            const currency = currentLang === 'ar' ? 'ج' : 'EGP';
             row.innerHTML = `
                 <td style="font-weight:700; color:#f1f5f9;">${stock.name}</td>
                 <td class="stock-qty" style="color:#e2e8f0;">${stock.qty.toLocaleString()}</td>
-                <td style="color:#e2e8f0;">${stock.buy.toFixed(4)} ج</td>
+                <td style="color:#e2e8f0;">${stock.buy.toFixed(4)} ${currency}</td>
                 <td><input type="number" id="curr_price_${idx}" value="${stock.current}" step="0.01" style="width:85px; padding:5px; border-radius:10px; border:1px solid #475569; text-align:center; background:#0f172a; color:white;"></td>
                 <td>${getStockProfitDisplay(stock)}</td>
             `;
@@ -297,16 +368,16 @@
                 <td colspan="5" style="padding:8px 0;">
                     <div class="stock-actions-container">
                         <div class="action-row">
-                            <span>🟢 شراء</span>
-                            <input type="number" id="buy_qty_${idx}" placeholder="الكمية">
-                            <input type="number" id="buy_price_${idx}" placeholder="السعر">
-                            <button class="btn-sm-buy" onclick="buyStock(${idx})">شراء</button>
+                            <span>${currentLang === 'ar' ? '🟢 شراء' : '🟢 Buy'}</span>
+                            <input type="number" id="buy_qty_${idx}" placeholder="${currentLang === 'ar' ? 'الكمية' : 'Qty'}">
+                            <input type="number" id="buy_price_${idx}" placeholder="${currentLang === 'ar' ? 'السعر' : 'Price'}">
+                            <button class="btn-sm-buy" onclick="buyStock(${idx})">${currentLang === 'ar' ? 'شراء' : 'Buy'}</button>
                         </div>
                         <div class="action-row">
-                            <span>🔴 بيع</span>
-                            <input type="number" id="sell_qty_${idx}" placeholder="الكمية">
-                            <input type="number" id="sell_price_${idx}" placeholder="السعر">
-                            <button class="btn-sm-sell" onclick="sellStock(${idx})">بيع</button>
+                            <span>${currentLang === 'ar' ? '🔴 بيع' : '🔴 Sell'}</span>
+                            <input type="number" id="sell_qty_${idx}" placeholder="${currentLang === 'ar' ? 'الكمية' : 'Qty'}">
+                            <input type="number" id="sell_price_${idx}" placeholder="${currentLang === 'ar' ? 'السعر' : 'Price'}">
+                            <button class="btn-sm-sell" onclick="sellStock(${idx})">${currentLang === 'ar' ? 'بيع' : 'Sell'}</button>
                         </div>
                     </div>
                 </td>
@@ -323,9 +394,15 @@
         const stock = portfolio[idx];
         const qty = parseFloat(document.getElementById(`buy_qty_${idx}`).value);
         const price = parseFloat(document.getElementById(`buy_price_${idx}`).value);
-        if (!qty || qty <= 0 || !price || price <= 0) { alert('ادخل كمية وسعر صحيحين'); return; }
+        if (!qty || qty <= 0 || !price || price <= 0) { 
+            alert(currentLang === 'ar' ? 'ادخل كمية وسعر صحيحين' : 'Enter valid quantity and price'); 
+            return; 
+        }
         const cost = qty * price;
-        if (cost > freeCash) { alert('الكاش الحر غير كافٍ'); return; }
+        if (cost > freeCash) { 
+            alert(currentLang === 'ar' ? 'الكاش الحر غير كافٍ' : 'Insufficient cash'); 
+            return; 
+        }
         const oldPortfolioValue = totalPortfolioValue();
         freeCash -= cost;
         const oldTotalCost = stock.qty * stock.buy;
@@ -335,9 +412,12 @@
         const newPortfolioValue = totalPortfolioValue();
         const profitChange = newPortfolioValue - oldPortfolioValue;
         addToDailyProfit(profitChange);
+        
         document.getElementById(`buy_qty_${idx}`).value = '';
         document.getElementById(`buy_price_${idx}`).value = '';
-        addBuyTransaction(stock.name, qty, price, new Date().toLocaleDateString('ar-EG'));
+        
+        const transactionDate = getSelectedDate();
+        addBuyTransaction(stock.name, qty, price, transactionDate);
         refreshUI();
     };
 
@@ -345,11 +425,16 @@
         const stock = portfolio[idx];
         const qty = parseFloat(document.getElementById(`sell_qty_${idx}`).value);
         const price = parseFloat(document.getElementById(`sell_price_${idx}`).value);
-        if (!qty || qty <= 0 || !price || price <= 0) { alert('ادخل كمية وسعر صحيحين'); return; }
-        if (qty > stock.qty) { alert('كمية أكبر من المتاحة'); return; }
+        if (!qty || qty <= 0 || !price || price <= 0) { 
+            alert(currentLang === 'ar' ? 'ادخل كمية وسعر صحيحين' : 'Enter valid quantity and price'); 
+            return; 
+        }
+        if (qty > stock.qty) { 
+            alert(currentLang === 'ar' ? 'كمية أكبر من المتاحة' : 'Quantity exceeds available shares'); 
+            return; 
+        }
         
         const buyPriceAtSell = stock.buy;
-        
         const oldPortfolioValue = totalPortfolioValue();
         const revenue = qty * price;
         freeCash += revenue;
@@ -359,7 +444,8 @@
         const profitChange = newPortfolioValue - oldPortfolioValue;
         addToDailyProfit(profitChange);
         
-        addSellTransaction(stock.name, qty, price, buyPriceAtSell, new Date().toLocaleDateString('ar-EG'));
+        const transactionDate = getSelectedDate();
+        addSellTransaction(stock.name, qty, price, buyPriceAtSell, transactionDate);
         
         document.getElementById(`sell_qty_${idx}`).value = '';
         document.getElementById(`sell_price_${idx}`).value = '';
@@ -381,14 +467,15 @@
         }
         addToDailyProfit(totalChange);
         refreshUI();
-        alert(`تم تحديث الأسعار!\nالتغير: ${totalChange >= 0 ? '+' : ''}${totalChange.toFixed(2)} ج`);
+        const msg = currentLang === 'ar' ? `تم تحديث الأسعار!\nالتغير: ${totalChange >= 0 ? '+' : ''}${totalChange.toFixed(2)} ج` : `Prices updated!\nChange: ${totalChange >= 0 ? '+' : ''}${totalChange.toFixed(2)} EGP`;
+        alert(msg);
     };
 
     window.loadDailyProfitByDate = function() {
-        const date = document.getElementById('realDatePicker').value;
-        if (!date) { alert('اختر تاريخاً'); return; }
+        const date = getSelectedDate();
         const profit = dailyProfitsMap[date] || 0;
-        document.getElementById('selectedDateProfitDisplay').innerHTML = (profit >= 0 ? '+' : '') + profit.toFixed(2) + ' ج';
+        const currency = currentLang === 'ar' ? ' ج' : ' EGP';
+        document.getElementById('selectedDateProfitDisplay').innerHTML = (profit >= 0 ? '+' : '') + profit.toFixed(2) + currency;
         document.getElementById('selectedDateProfitDisplay').style.color = profit >= 0 ? '#10b981' : '#ef4444';
     };
 
@@ -396,18 +483,46 @@
         const name = document.getElementById('newStockName').value.trim();
         const qty = parseFloat(document.getElementById('newStockQty').value);
         const buy = parseFloat(document.getElementById('newStockBuy').value);
-        if (!name || !qty || !buy) { alert('املأ الحقول'); return; }
+        const dateInput = document.getElementById('newStockDate').value;
+        
+        if (!name || !qty || !buy) { 
+            alert(currentLang === 'ar' ? 'املأ الحقول' : 'Fill all fields'); 
+            return; 
+        }
+        
         const cost = qty * buy;
         if (cost > freeCash) {
-            alert('❌ الكاش الحر غير كافٍ!\nالتكلفة: ' + cost.toFixed(2) + ' ج\nالمتاح: ' + freeCash.toFixed(2) + ' ج');
+            alert(currentLang === 'ar' ? '❌ الكاش الحر غير كافٍ!\nالتكلفة: ' + cost.toFixed(2) + ' ج\nالمتاح: ' + freeCash.toFixed(2) + ' ج' : '❌ Insufficient cash!\nCost: ' + cost.toFixed(2) + ' EGP\nAvailable: ' + freeCash.toFixed(2) + ' EGP');
             return;
         }
+        
+        const oldPortfolioValue = totalPortfolioValue();
         freeCash -= cost;
-        portfolio.push({ name, qty, buy, current: buy });
+        
+        const existingStock = portfolio.find(s => s.name === name);
+        const transactionDate = dateInput || getSelectedDate();
+        
+        if (existingStock) {
+            const oldTotalCost = existingStock.qty * existingStock.buy;
+            const newTotalCost = oldTotalCost + cost;
+            existingStock.qty += qty;
+            existingStock.buy = newTotalCost / existingStock.qty;
+            existingStock.current = buy;
+        } else {
+            portfolio.push({ name, qty, buy, current: buy });
+        }
+        
+        const newPortfolioValue = totalPortfolioValue();
+        const profitChange = newPortfolioValue - oldPortfolioValue;
+        addToDailyProfit(profitChange);
+        
+        addBuyTransaction(name, qty, buy, transactionDate);
+        
         document.getElementById('newStockName').value = '';
         document.getElementById('newStockQty').value = '';
         document.getElementById('newStockBuy').value = '';
         document.getElementById('newStockDate').value = '';
+        
         refreshUI();
     };
 
@@ -415,40 +530,99 @@
         const container = document.getElementById('historyDatesContainer');
         container.innerHTML = '';
         const dates = Object.keys(dailyProfitsMap).sort().reverse();
-        if (dates.length === 0) { container.innerHTML = '<div class="label-sm">لا توجد أرباح مسجلة</div>'; return; }
+        if (dates.length === 0) { 
+            container.innerHTML = '<div class="label-sm">' + (currentLang === 'ar' ? 'لا توجد أرباح مسجلة' : 'No profits recorded') + '</div>'; 
+            return; 
+        }
         dates.forEach(d => {
             const profit = dailyProfitsMap[d];
             const color = profit >= 0 ? '#10b981' : '#ef4444';
             const badge = document.createElement('div');
             badge.className = 'day-badge';
-            badge.innerHTML = `${d}<br><span style="color:${color};">${profit >= 0 ? '+' : ''}${profit.toFixed(0)} ج</span>`;
-            badge.onclick = () => { document.getElementById('realDatePicker').value = d; loadDailyProfitByDate(); };
+            const currency = currentLang === 'ar' ? ' ج' : ' EGP';
+            badge.innerHTML = `${d}<br><span style="color:${color};">${profit >= 0 ? '+' : ''}${profit.toFixed(0)}${currency}</span>`;
+            badge.onclick = () => { 
+                document.getElementById('realDatePicker').value = d; 
+                loadDailyProfitByDate(); 
+                renderSellTransactions(); 
+            };
             container.appendChild(badge);
         });
         const lastDate = dates[0];
-        document.getElementById('dailyReturnMessage').innerHTML = `📌 آخر يوم: ${lastDate} (${dailyProfitsMap[lastDate] >= 0 ? '+' : ''}${dailyProfitsMap[lastDate].toFixed(2)} ج)`;
+        const lastProfit = dailyProfitsMap[lastDate];
+        const currency = currentLang === 'ar' ? ' ج' : ' EGP';
+        document.getElementById('dailyReturnMessage').innerHTML = `📌 ${currentLang === 'ar' ? 'آخر يوم' : 'Last day'}: ${lastDate} (${lastProfit >= 0 ? '+' : ''}${lastProfit.toFixed(2)}${currency})`;
     }
 
     function refreshUI() {
-        document.getElementById('freeCashDisplay').innerHTML = freeCash.toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج';
-        document.getElementById('netDeposit').innerHTML = getNetDeposit().toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج';
-        document.getElementById('portfolioValue').innerHTML = totalPortfolioValue().toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج';
-        const totalRet = totalPortfolioValue() - getNetDeposit();
-        const retSpan = document.getElementById('totalReturn');
-        retSpan.innerHTML = (totalRet >= 0 ? '+' : '') + totalRet.toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج';
-        retSpan.className = 'value-large ' + (totalRet >= 0 ? 'green' : 'red');
+        const locale = currentLang === 'ar' ? 'ar-EG' : 'en-US';
+        const curr   = currentLang === 'ar' ? ' ج' : ' EGP';
+        const fmt = n => n.toLocaleString(locale, { maximumFractionDigits: 2 }) + curr;
+        document.getElementById('freeCashDisplay').innerHTML = fmt(freeCash);
+        document.getElementById('netDeposit').innerHTML      = fmt(getNetDeposit());
+        document.getElementById('portfolioValue').innerHTML  = fmt(totalPortfolioValue());
+        const totalRet = getTotalReturn();
+        const retSpan  = document.getElementById('totalReturn');
+        retSpan.innerHTML  = (totalRet >= 0 ? '+' : '') + fmt(totalRet);
+        retSpan.className  = 'value-large ' + (totalRet >= 0 ? 'green' : 'red');
         renderStocksTable();
         saveToLocal();
     }
+    
+    // ✅ دالة تطبيق إجمالي العوائد اليدوي (مرة واحدة فقط)
+    window.applyManualReturn = function() {
+        if(manualReturnApplied) {
+            alert(currentLang === 'ar' ? 'تم تطبيق إجمالي العوائد يدويًا من قبل! لا يمكن التكرار.' : 'Manual total return already applied! Cannot repeat.');
+            return;
+        }
+        const manualValue = parseFloat(document.getElementById('manualReturnAmount').value);
+        if(isNaN(manualValue)) {
+            alert(currentLang === 'ar' ? 'أدخل قيمة صحيحة لإجمالي العوائد' : 'Enter a valid total return amount');
+            return;
+        }
+        
+        // المعادلة: إجمالي العائد الحالي (قيمة المحفظة - صافي الإيداع) = manualValue
+        // يعني: totalPortfolioValue - netDeposit = manualValue
+        // => totalPortfolioValue = netDeposit + manualValue
+        // و freeCash = totalPortfolioValue - stocksValue()
+        
+        const currentNetDeposit = getNetDeposit();
+        const targetPortfolioValue = currentNetDeposit + manualValue;
+        const currentStocksValue = stocksValue();
+        const newFreeCash = targetPortfolioValue - currentStocksValue;
+        
+        if(newFreeCash < 0) {
+            alert(currentLang === 'ar' ? '❌ لا يمكن تطبيق هذا العائد لأن قيمة الأسهم أكبر من القيمة المستهدفة للمحفظة.' : '❌ Cannot apply this return because stocks value exceeds target portfolio value.');
+            return;
+        }
+        
+        freeCash = newFreeCash;
+        manualReturnApplied = true;
+        manualReturnValue = manualValue;
+        
+        // إخفاء الكارد أو تعطيله
+        document.getElementById('manualReturnCard').style.opacity = '0.6';
+        document.getElementById('manualReturnAmount').disabled = true;
+        document.getElementById('applyManualReturnBtn').disabled = true;
+        document.getElementById('applyManualReturnBtn').style.opacity = '0.5';
+        document.getElementById('manualReturnDone').style.display = 'inline-block';
+        document.getElementById('manualReturnMsg').innerHTML = currentLang === 'ar' ? '✓ تم تطبيق إجمالي العوائد: ' + manualValue.toFixed(2) + ' ج' : '✓ Applied total return: ' + manualValue.toFixed(2) + ' EGP';
+        
+        refreshUI();
+        saveToLocal();
+        
+        const msg = currentLang === 'ar' ? 'تم ضبط إجمالي العوائد بنجاح!' : 'Total return set successfully!';
+        alert(msg);
+    };
 
     function updateChart() {
         if(hideNumbers) return;
         const canvas = document.getElementById('profitChart');
+        if(!canvas) return;
         if (chartInstance) chartInstance.destroy();
         const sortedDates = Object.keys(dailyProfitsMap).sort();
         if(sortedDates.length === 0) return;
 
-        // حساب الأرباح التراكمية
         let cumulative = 0;
         const cumulativeData = sortedDates.map(d => {
             cumulative += dailyProfitsMap[d];
@@ -461,7 +635,7 @@
                 labels: sortedDates,
                 datasets: [
                     {
-                        label: 'العائد التراكمي (ج)',
+                        label: currentLang === 'ar' ? 'العائد التراكمي (ج)' : 'Cumulative Return (EGP)',
                         data: cumulativeData,
                         borderColor: cumulativeData[cumulativeData.length-1] >= 0 ? '#10b981' : '#ef4444',
                         backgroundColor: cumulativeData[cumulativeData.length-1] >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
@@ -486,20 +660,32 @@
 
     window.processDeposit = function() {
         const amt = parseFloat(document.getElementById('moneyAmount').value);
-        if (!amt || amt <= 0) { alert('أدخل مبلغاً صحيحاً'); return; }
+        if (!amt || amt <= 0) { 
+            alert(currentLang === 'ar' ? 'أدخل مبلغاً صحيحاً' : 'Enter a valid amount'); 
+            return; 
+        }
         totalDeposits += amt;
         freeCash += amt;
         refreshUI();
         document.getElementById('moneyAmount').value = '';
+        saveToLocal();
     };
+    
     window.processWithdraw = function() {
         const amt = parseFloat(document.getElementById('moneyAmount').value);
-        if (!amt || amt <= 0) { alert('أدخل مبلغاً صحيحاً'); return; }
-        if (amt > freeCash) { alert('الكاش الحر غير كافٍ'); return; }
+        if (!amt || amt <= 0) { 
+            alert(currentLang === 'ar' ? 'أدخل مبلغاً صحيحاً' : 'Enter a valid amount'); 
+            return; 
+        }
+        if (amt > freeCash) { 
+            alert(currentLang === 'ar' ? 'الكاش الحر غير كافٍ' : 'Insufficient cash'); 
+            return; 
+        }
         totalWithdraws += amt;
         freeCash -= amt;
         refreshUI();
         document.getElementById('moneyAmount').value = '';
+        saveToLocal();
     };
 
     window.resetWallet = function() {
@@ -509,44 +695,259 @@
         document.getElementById('resetModal').classList.remove('active');
     };
     window.confirmReset = function() {
-        totalDeposits = 0;
-        totalWithdraws = 0;
-        freeCash = 0;
-        portfolio = [];
-        dailyProfitsMap = {};
-        sellTransactions = [];
-        localStorage.removeItem('portfolioFinalDark_v2');
+        totalDeposits = 0; totalWithdraws = 0; freeCash = 0;
+        portfolio = []; dailyProfitsMap = {}; sellTransactions = []; importedKeys = [];
+        manualReturnApplied = false; manualReturnValue = 0;
+        localStorage.removeItem('portfolioFinalDark_v7');
         if(chartInstance) { chartInstance.destroy(); chartInstance = null; }
         closeResetModal();
+        
+        // إعادة تفعيل الكارد
+        document.getElementById('manualReturnCard').style.opacity = '1';
+        document.getElementById('manualReturnAmount').disabled = false;
+        document.getElementById('applyManualReturnBtn').disabled = false;
+        document.getElementById('applyManualReturnBtn').style.opacity = '1';
+        document.getElementById('manualReturnDone').style.display = 'none';
+        document.getElementById('manualReturnMsg').innerHTML = '';
+        document.getElementById('manualReturnAmount').value = '';
+        
         refreshUI();
         renderHistoryDates();
         renderSellTransactions();
-        document.getElementById('selectedDateProfitDisplay').innerHTML = '— ج';
+        const currency = currentLang === 'ar' ? 'ج' : 'EGP';
+        document.getElementById('selectedDateProfitDisplay').innerHTML = '— ' + currency;
         document.getElementById('selectedDateProfitDisplay').style.color = '#94a3b8';
+        document.getElementById('dailyReturnMessage').innerHTML = '';
+        document.getElementById('importResult').innerHTML = '';
+        saveToLocal();
     };
 
-    function saveToLocal() { localStorage.setItem('portfolioFinalDark_v2', JSON.stringify({ totalDeposits, totalWithdraws, freeCash, portfolio, dailyProfitsMap, sellTransactions })); }
+    function applyLanguage() {
+        const isAr = currentLang === 'ar';
+        
+        document.getElementById('walletTitle').innerHTML = isAr ? '📊 محفظتي' : '📊 My Portfolio';
+        document.getElementById('langBtn').innerHTML = isAr ? '🌐 EN' : '🌐 ع';
+        document.getElementById('hideBtn').innerHTML = '👁️';
+        document.getElementById('resetBtn').innerHTML = '🗑️';
+        
+        document.getElementById('manualReturnHeader').innerHTML = isAr ? '🎯 إجمالي العوائد (يدوي - لمرة واحدة)' : '🎯 Manual Total Return (One Time)';
+        document.getElementById('applyManualReturnBtn').innerHTML = isAr ? '✅ تطبيق وحساب' : '✅ Apply & Calculate';
+        document.getElementById('manualReturnAmount').placeholder = isAr ? 'أدخل إجمالي العائد الحالي' : 'Enter current total return';
+        
+        document.getElementById('balanceHeader').innerHTML = isAr ? '💰 الرصيد المتاح' : '💰 Available Balance';
+        document.getElementById('netDepositLabel').innerHTML = isAr ? '📥 صافي الإيداع' : '📥 Net Deposit';
+        document.getElementById('depositHeader').innerHTML = isAr ? '➕ إيداع / سحب' : '➕ Deposit / Withdraw';
+        document.getElementById('depositBtn').innerHTML = isAr ? '💰 إيداع' : '💰 Deposit';
+        document.getElementById('withdrawBtn').innerHTML = isAr ? '💸 سحب' : '💸 Withdraw';
+        document.getElementById('totalReturnHeader').innerHTML = isAr ? '📈 إجمالي العائد' : '📈 Total Return';
+        document.getElementById('portfolioValueLabel').innerHTML = isAr ? '🏦 قيمة المحفظة' : '🏦 Portfolio Value';
+        document.getElementById('dailyProfitHeader').innerHTML = isAr ? '📅 أرباح اليوم' : '📅 Daily Profit';
+        document.getElementById('showProfitBtn').innerHTML = isAr ? 'عرض أرباح هذا التاريخ' : 'Show Profit for this Date';
+        document.getElementById('importHeader').innerHTML = isAr ? '📥 استيراد CSV من تيلدا' : '📥 Import CSV from Tilda';
+        document.getElementById('importNowBtn').innerHTML = isAr ? '📥 استيراد الآن' : '📥 Import Now';
+        document.getElementById('addStockHeader').innerHTML = isAr ? '➕ إضافة سهم' : '➕ Add Stock';
+        document.getElementById('addStockBtn').innerHTML = isAr ? '➕ أضف' : '➕ Add';
+        document.getElementById('stocksHeader').innerHTML = isAr ? '📋 الأسهم' : '📋 Stocks';
+        document.getElementById('updateAllBtn').innerHTML = isAr ? '🔄 تحديث الأسعار' : '🔄 Update Prices';
+        document.getElementById('historyHeader').innerHTML = isAr ? '📆 سجل الأرباح' : '📆 Profit History';
+        document.getElementById('chartHeader').innerHTML = isAr ? '📊 العائد التراكمي' : '📊 Cumulative Return';
+        document.getElementById('transactionsHeader').innerHTML = isAr ? '📋 المعاملات (شراء وبيع)' : '📋 Transactions (Buy/Sell)';
+        
+        document.getElementById('thName').innerHTML = isAr ? 'السهم' : 'Stock';
+        document.getElementById('thQty').innerHTML = isAr ? 'الكمية' : 'Quantity';
+        document.getElementById('thAvgBuy').innerHTML = isAr ? 'متوسط الشراء' : 'Avg Buy';
+        document.getElementById('thCurrent').innerHTML = isAr ? 'السعر الحالي' : 'Current Price';
+        document.getElementById('thProfitLoss').innerHTML = isAr ? 'الربح/الخسارة' : 'Profit/Loss';
+        
+        document.getElementById('resetModalTitle').innerHTML = isAr ? '🗑️ إعادة تعيين المحفظة' : '🗑️ Reset Portfolio';
+        document.getElementById('resetModalText').innerHTML = isAr ? 'هتمسح المحفظة كلها<br>الأسهم، الفلوس، الأرباح، كل حاجة<br><strong style="color:#ef4444;">مفيش رجعة!</strong>' : 'This will delete everything<br>Stocks, cash, profits, all data<br><strong style="color:#ef4444;">This cannot be undone!</strong>';
+        document.getElementById('resetCancelBtn').innerHTML = isAr ? 'إلغاء' : 'Cancel';
+        document.getElementById('resetConfirmBtn').innerHTML = isAr ? 'امسح كل حاجة' : 'Delete All';
+        
+        document.getElementById('moneyAmount').placeholder = isAr ? 'المبلغ' : 'Amount';
+        document.getElementById('newStockName').placeholder = isAr ? 'الاسم' : 'Name';
+        document.getElementById('newStockQty').placeholder = isAr ? 'الكمية' : 'Quantity';
+        document.getElementById('newStockBuy').placeholder = isAr ? 'سعر الشراء' : 'Buy Price';
+        
+        if(!document.getElementById('csvFileName').dataset.hasFile) {
+            document.getElementById('csvFileName').innerHTML = isAr ? 'اضغط لاختيار ملف CSV' : 'Tap to choose CSV file';
+        }
+        
+        if(manualReturnApplied) {
+            document.getElementById('manualReturnMsg').innerHTML = isAr ? '✓ تم تطبيق إجمالي العوائد: ' + manualReturnValue.toFixed(2) + ' ج' : '✓ Applied total return: ' + manualReturnValue.toFixed(2) + ' EGP';
+        }
+        
+        fromDateInput.placeholder = isAr ? 'من تاريخ' : 'From';
+        toDateInput.placeholder = isAr ? 'إلى تاريخ' : 'To';
+        
+        refreshUI();
+        renderHistoryDates();
+        renderSellTransactions();
+        if(!hideNumbers) updateChart();
+    }
+    
+    const fromDateInput = document.getElementById('fromDate');
+    const toDateInput = document.getElementById('toDate');
+
+    function toggleLang() {
+        currentLang = currentLang === 'ar' ? 'en' : 'ar';
+        document.documentElement.lang = currentLang;
+        document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+        applyLanguage();
+        loadDailyProfitByDate();
+        saveToLocal();
+    }
+
+    function saveToLocal() { 
+        localStorage.setItem('portfolioFinalDark_v7', JSON.stringify({ 
+            totalDeposits, totalWithdraws, freeCash, portfolio, dailyProfitsMap, 
+            sellTransactions, importedKeys, lang: currentLang, hideNumbers,
+            manualReturnApplied, manualReturnValue
+        })); 
+    }
+    
     function loadFromLocal() {
-        const saved = localStorage.getItem('portfolioFinalDark_v2');
+        const saved = localStorage.getItem('portfolioFinalDark_v7');
         if(saved) {
             try {
                 const d = JSON.parse(saved);
-                totalDeposits = d.totalDeposits;
-                totalWithdraws = d.totalWithdraws;
-                freeCash = d.freeCash;
-                portfolio = d.portfolio;
+                totalDeposits   = d.totalDeposits   || 0;
+                totalWithdraws  = d.totalWithdraws  || 0;
+                freeCash        = d.freeCash        || 0;
+                portfolio       = d.portfolio       || [];
                 dailyProfitsMap = d.dailyProfitsMap || {};
-                sellTransactions = d.sellTransactions || [];
+                sellTransactions= d.sellTransactions|| [];
+                importedKeys    = d.importedKeys    || [];
+                if(d.lang) currentLang = d.lang;
+                if(d.hideNumbers !== undefined) hideNumbers = d.hideNumbers;
+                if(d.manualReturnApplied !== undefined) manualReturnApplied = d.manualReturnApplied;
+                if(d.manualReturnValue !== undefined) manualReturnValue = d.manualReturnValue;
             } catch(e) {}
+        }
+        document.documentElement.lang = currentLang;
+        document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+        if(hideNumbers) document.body.classList.add('hide-numbers');
+        
+        if(manualReturnApplied) {
+            document.getElementById('manualReturnCard').style.opacity = '0.6';
+            document.getElementById('manualReturnAmount').disabled = true;
+            document.getElementById('applyManualReturnBtn').disabled = true;
+            document.getElementById('applyManualReturnBtn').style.opacity = '0.5';
+            document.getElementById('manualReturnDone').style.display = 'inline-block';
         }
     }
 
+    let csvSelectedFile = null;
+    let importedKeys = [];
+
+    function csvFileSelected(input) {
+        csvSelectedFile = input.files[0];
+        if(csvSelectedFile) {
+            const el = document.getElementById('csvFileName');
+            el.innerHTML = '📄 ' + csvSelectedFile.name;
+            el.style.color = '#10b981';
+            el.dataset.hasFile = '1';
+        }
+    }
+
+    function runCSVImport() {
+        if(!csvSelectedFile) { 
+            alert(currentLang==='ar'?'اختر ملف CSV الأول':'Choose a CSV file first'); 
+            return; 
+        }
+        const fromDate = document.getElementById('fromDate').value;
+        const toDate   = document.getElementById('toDate').value;
+        const reader   = new FileReader();
+        reader.onload  = function(e) {
+            const lines = e.target.result.split('\n').map(l=>l.trim()).filter(l=>l);
+            if(lines.length<2) { 
+                document.getElementById('importResult').innerHTML='❌ '+(currentLang==='ar'?'الملف فاضي':'Empty file'); 
+                return; 
+            }
+            let rows = [];
+            for(let i=1;i<lines.length;i++){
+                const cols = lines[i].split(',');
+                if(cols.length<6) continue;
+                const raw = (cols[0]||'').trim();
+                let dk = raw;
+                const dp = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                if(dp) dk = `${dp[3]}-${dp[1].padStart(2,'0')}-${dp[2].padStart(2,'0')}`;
+                rows.push({ dateKey:dk, action:(cols[1]||'').trim(), symbol:(cols[2]||'').trim().toUpperCase(),
+                    qty:Math.abs(parseFloat(cols[3])||0), price:Math.abs(parseFloat(cols[4])||0),
+                    fees:Math.abs(parseFloat(cols[5])||0), total:parseFloat(cols[6]||0) });
+            }
+            rows.sort((a,b)=>a.dateKey.localeCompare(b.dateKey));
+            if(fromDate||toDate) rows=rows.filter(r=>{ if(fromDate&&r.dateKey<fromDate)return false; if(toDate&&r.dateKey>toDate)return false; return true; });
+
+            let grouped = {};
+            for(const r of rows){
+                const isBuy  = ['شراء','buy','Buy'].includes(r.action);
+                const isSell = ['بيع','sell','Sell'].includes(r.action);
+                const isDep  = ['إيداع','deposit','Deposit'].includes(r.action);
+                const isWit  = ['سحب','withdraw','Withdraw'].includes(r.action);
+                if(isDep||isWit) {
+                    const k=`${r.dateKey}_${r.action}`;
+                    if(!grouped[k]) grouped[k]={type:isDep?'deposit':'withdraw',dateKey:r.dateKey,total:0};
+                    grouped[k].total+=Math.abs(r.total);
+                } else if(isBuy&&r.symbol&&r.qty&&r.price) {
+                    const k=`${r.dateKey}_buy_${r.symbol}`;
+                    if(!grouped[k]) grouped[k]={type:'buy',dateKey:r.dateKey,symbol:r.symbol,totalQty:0,totalCost:0,totalFees:0};
+                    grouped[k].totalQty+=r.qty; grouped[k].totalCost+=r.qty*r.price; grouped[k].totalFees+=r.fees;
+                } else if(isSell&&r.symbol&&r.qty&&r.price) {
+                    const k=`${r.dateKey}_sell_${r.symbol}`;
+                    if(!grouped[k]) grouped[k]={type:'sell',dateKey:r.dateKey,symbol:r.symbol,totalQty:0,totalRevenue:0,totalFees:0};
+                    grouped[k].totalQty+=r.qty; grouped[k].totalRevenue+=r.qty*r.price; grouped[k].totalFees+=r.fees;
+                }
+            }
+
+            let imported=0, duplicate=0;
+            const gkeys=Object.keys(grouped).sort((a,b)=>grouped[a].dateKey.localeCompare(grouped[b].dateKey));
+            for(const gk of gkeys){
+                if(importedKeys.includes(gk)){duplicate++;continue;}
+                importedKeys.push(gk);
+                const g=grouped[gk];
+                if(g.type==='deposit') {
+                    totalDeposits+=g.total; freeCash+=g.total; imported++;
+                } else if(g.type==='withdraw') {
+                    totalWithdraws+=g.total; freeCash-=g.total; imported++;
+                } else if(g.type==='buy') {
+                    const avg=g.totalCost/g.totalQty;
+                    const cost=g.totalCost+g.totalFees;
+                    freeCash-=cost;
+                    const ex=portfolio.find(s=>s.name===g.symbol);
+                    if(ex){ const oc=ex.qty*ex.buy; ex.qty+=g.totalQty; ex.buy=(oc+g.totalCost)/ex.qty; ex.current=avg; }
+                    else { portfolio.push({name:g.symbol,qty:g.totalQty,buy:avg,current:avg}); }
+                    addBuyTransaction(g.symbol,g.totalQty,avg,g.dateKey);
+                    imported++;
+                } else if(g.type==='sell') {
+                    const avg=g.totalRevenue/g.totalQty;
+                    freeCash+=(g.totalRevenue-g.totalFees);
+                    const ex=portfolio.find(s=>s.name===g.symbol);
+                    if(ex){
+                        const bp=ex.buy; const profit=g.totalQty*(avg-bp);
+                        dailyProfitsMap[g.dateKey]=(dailyProfitsMap[g.dateKey]||0)+profit;
+                        addSellTransaction(g.symbol,g.totalQty,avg,bp,g.dateKey);
+                        ex.qty-=g.totalQty;
+                        if(ex.qty<=0) portfolio.splice(portfolio.indexOf(ex),1);
+                    }
+                    imported++;
+                }
+            }
+            saveToLocal(); refreshUI(); renderHistoryDates(); updateChart();
+            document.getElementById('importResult').innerHTML=`✅ ${currentLang==='ar'?'تم الاستيراد':'Imported'}: ${imported}${duplicate>0?' | '+(currentLang==='ar'?'مكرر':'duplicate')+': '+duplicate:''}`;
+        };
+        reader.readAsText(csvSelectedFile,'UTF-8');
+    }
+
     loadFromLocal();
+    applyLanguage();
     refreshUI();
     renderHistoryDates();
     renderSellTransactions();
     const today = new Date().toISOString().slice(0,10);
     if(!document.getElementById('realDatePicker').value) document.getElementById('realDatePicker').value = today;
+    document.getElementById('fromDate').value = today;
+    document.getElementById('toDate').value   = today;
     loadDailyProfitByDate();
     updateChart();
 </script>
