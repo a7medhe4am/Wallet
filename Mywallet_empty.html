@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>محفظتي - الوضع الليلي (فارغة)</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Cairo',sans-serif;background:#0f172a;padding:20px;color:#f1f5f9;}
+    .container{max-width:550px;margin:0 auto;}
+    .card{background:#1e293b;border-radius:24px;padding:20px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,0.3);transition:all 0.2s;border:1px solid #334155;}
+    .card-header{font-size:16px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;border-right:4px solid #3b82f6;padding-right:12px;color:#e2e8f0;}
+    .value-large{font-size:28px;font-weight:800;margin-top:6px;}
+    .label-sm{font-size:12px;color:#94a3b8;font-weight:500;}
+    .green{color:#10b981;}.red{color:#ef4444;}.blue{color:#60a5fa;}
+    .row-2col{display:flex;gap:12px;margin-top:12px;}
+    .row-2col button{flex:1;}
+    input,select,button{font-family:'Cairo',sans-serif;width:100%;padding:10px;border-radius:14px;border:1px solid #334155;font-size:13px;background:#0f172a;color:#f1f5f9;}
+    input:focus{outline:none;border-color:#3b82f6;}
+    button{background:#3b82f6;color:white;font-weight:700;border:none;cursor:pointer;transition:0.2s;}
+    button:active{transform:scale(0.97);}
+    .btn-success{background:#10b981;}.btn-danger{background:#ef4444;}.btn-secondary{background:#64748b;}
+    .table-wrapper{overflow-x:auto;margin:12px 0 6px;border-radius:16px;}
+    .stocks-table{width:100%;border-collapse:collapse;font-size:12px;}
+    .stocks-table th{text-align:right;padding:12px 8px;background:#0f172a;color:#94a3b8;font-weight:600;border-bottom:1px solid #334155;}
+    .stocks-table td{padding:12px 8px;border-bottom:1px solid #334155;vertical-align:middle;background:#1e293b;}
+    .stock-actions-container{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+    .action-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#0f172a;padding:10px;border-radius:12px;border:1px solid #334155;}
+    .action-row span{font-size:11px;font-weight:700;color:#94a3b8;width:40px;}
+    .action-row input{width:70px;padding:6px;margin:0;background:#1e293b;border:1px solid #475569;}
+    .action-row button{width:auto;padding:6px 12px;margin:0;}
+    .btn-sm-buy{background:#10b981;}.btn-sm-sell{background:#ef4444;}
+    .stock-profit-row{font-size:11px;margin-top:4px;font-weight:600;}
+    .history-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+    .day-badge{background:#334155;padding:6px 12px;border-radius:40px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;color:#e2e8f0;}
+    .day-badge span{color:#10b981;}
+    .return-number{font-size:24px;font-weight:800;text-align:center;margin-top:10px;}
+    canvas{max-height:180px;background:#1e293b;border-radius:20px;padding:8px;margin-top:10px;}
+    hr{margin:10px 0;border-color:#334155;}
+    .add-stock-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+    .add-stock-row input{flex:1;min-width:90px;font-size:12px;}
+    .transaction-item{background:#1e293b;border-radius:16px;padding:12px;margin-bottom:8px;border-right:3px solid #ef4444;border:1px solid #334155;}
+    .transaction-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;color:#e2e8f0;}
+    .eye-icon{font-size:24px;cursor:pointer;background:rgba(255,255,255,0.1);border:none;width:auto;padding:8px 12px;margin-right:auto;border-radius:50px;color:white;}
+    .eye-icon:hover{background:rgba(255,255,255,0.2);}
+    
+    /* إخفاء كل حاجة */
+    .hide-numbers .value-large,
+    .hide-numbers .stock-profit-row,
+    .hide-numbers .return-number,
+    .hide-numbers .action-row,
+    .hide-numbers .day-badge span,
+    .hide-numbers #dailyReturnMessage,
+    .hide-numbers .transaction-details,
+    .hide-numbers .stocks-table td:nth-child(2),
+    .hide-numbers .stocks-table td:nth-child(3),
+    .hide-numbers .stocks-table td:nth-child(4),
+    .hide-numbers .stocks-table th:nth-child(2),
+    .hide-numbers .stocks-table th:nth-child(3),
+    .hide-numbers .stocks-table th:nth-child(4),
+    .hide-numbers .stocks-table th:nth-child(5),
+    .hide-numbers .transaction-qty,
+    .hide-numbers #profitChart,
+    .hide-numbers .card:has(canvas) { display: none !important; }
+    
+    .hide-numbers .stocks-table td:nth-child(1),
+    .hide-numbers .stocks-table th:nth-child(1) { display: table-cell; }
+    .hide-numbers .card:has(canvas) { display: none; }
+    .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:999;display:none;justify-content:center;align-items:center;}
+    .modal-overlay.active{display:flex;}
+    .modal-box{background:#1e293b;border:2px solid #ef4444;border-radius:24px;padding:28px 24px;max-width:320px;width:90%;text-align:center;}
+    .modal-box h3{font-size:18px;font-weight:800;color:#ef4444;margin-bottom:12px;}
+    .modal-box p{font-size:13px;color:#94a3b8;margin-bottom:20px;line-height:1.8;}
+    .modal-btns{display:flex;gap:12px;}
+    .modal-btns button{flex:1;padding:12px;}
+</style>
+</head>
+<body>
+<div class="modal-overlay" id="resetModal">
+    <div class="modal-box">
+        <h3>🗑️ إعادة تعيين المحفظة</h3>
+        <p>هتمسح المحفظة كلها<br>الأسهم، الفلوس، الأرباح، كل حاجة<br><strong style="color:#ef4444;">مفيش رجعة!</strong></p>
+        <div class="modal-btns">
+            <button class="btn-secondary" onclick="closeResetModal()">إلغاء</button>
+            <button class="btn-danger" onclick="confirmReset()">امسح كل حاجة</button>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div class="card" style="text-align:center; background:linear-gradient(135deg,#0f172a,#1e293b); display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #3b82f6;">
+        <div style="font-size:20px; font-weight:800;">📊 محفظتي</div>
+        <div style="display:flex; gap:8px;">
+            <button class="eye-icon" onclick="toggleHideNumbers()">👁️</button>
+            <button class="eye-icon" style="background:rgba(239,68,68,0.2); color:#ef4444;" onclick="resetWallet()">🗑️</button>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">💰 الرصيد المتاح</div>
+        <div class="value-large blue" id="freeCashDisplay">0 ج</div>
+        <hr>
+        <div class="label-sm">📥 صافي الإيداع</div>
+        <div class="value-large" id="netDeposit" style="font-size:22px;">0 ج</div>
+    </div>
+    <div class="card">
+        <div class="card-header">➕ إيداع / سحب</div>
+        <input type="number" id="moneyAmount" placeholder="المبلغ">
+        <div class="row-2col">
+            <button class="btn-success" onclick="processDeposit()">💰 إيداع</button>
+            <button class="btn-danger" onclick="processWithdraw()">💸 سحب</button>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">📈 إجمالي العائد</div>
+        <div class="value-large" id="totalReturn">0 ج</div>
+        <hr>
+        <div class="label-sm">🏦 قيمة المحفظة</div>
+        <div class="value-large blue" id="portfolioValue">0 ج</div>
+    </div>
+    <div class="card">
+        <div class="card-header">📅 أرباح اليوم</div>
+        <input type="date" id="realDatePicker" style="margin-bottom:10px;">
+        <button class="btn-secondary" onclick="loadDailyProfitByDate()">عرض أرباح هذا التاريخ</button>
+        <div id="selectedDateProfitDisplay" class="return-number">— ج</div>
+    </div>
+    <div class="card">
+        <div class="card-header">➕ إضافة سهم</div>
+        <div class="add-stock-row">
+            <input type="text" id="newStockName" placeholder="الاسم">
+            <input type="number" id="newStockQty" placeholder="الكمية">
+            <input type="number" id="newStockBuy" placeholder="سعر الشراء">
+            <input type="date" id="newStockDate">
+        </div>
+        <button onclick="addNewStock()" style="background:#8b5cf6;">➕ أضف</button>
+    </div>
+    <div class="card">
+        <div class="card-header">📋 الأسهم</div>
+        <div class="table-wrapper">
+            <table class="stocks-table">
+                <thead><th>السهم</th><th>الكمية</th><th>متوسط الشراء</th><th>السعر الحالي</th><th>الربح/الخسارة</th></thead>
+                <tbody id="stocksGrid"></tbody>
+            </table>
+        </div>
+        <button id="updateAllBtn" style="margin-top:16px; background:#10b981; padding:12px;" onclick="updatePrices()">🔄 تحديث الأسعار</button>
+    </div>
+    <div class="card">
+        <div class="card-header">📆 سجل الأرباح</div>
+        <div id="historyDatesContainer" class="history-badges"></div>
+        <div id="dailyReturnMessage" style="font-size:13px; margin-top:8px; text-align:center; color:#94a3b8;"></div>
+    </div>
+    <div class="card">
+        <div class="card-header">📊 العائد التراكمي</div>
+        <canvas id="profitChart"></canvas>
+    </div>
+    <div class="card">
+        <div class="card-header">📋 المعاملات (شراء وبيع)</div>
+        <div id="transactionsList" style="max-height:250px; overflow-y:auto;"></div>
+    </div>
+</div>
+<script>
+    let totalDeposits = 0;
+    let totalWithdraws = 0;
+    let freeCash = 0;
+    let portfolio = [];
+    let dailyProfitsMap = {};
+    let sellTransactions = []; // اسمه اتفضل كده للحفظ بس بيشمل شراء وبيع
+    let chartInstance = null;
+    let hideNumbers = false;
+
+    function stocksValue() { return portfolio.reduce((sum, s) => sum + (s.qty * s.current), 0); }
+    function totalPortfolioValue() { return stocksValue() + freeCash; }
+    function getNetDeposit() { return totalDeposits - totalWithdraws; }
+
+    function addSellTransaction(name, qty, sellPrice, buyPrice, date) {
+        const profit = qty * (sellPrice - buyPrice);
+        const profitPercent = (profit / (qty * buyPrice)) * 100;
+        sellTransactions.unshift({ type:'sell', name, qty, sellPrice, buyPrice, profit, profitPercent, date, timestamp: Date.now() });
+        if(sellTransactions.length > 50) sellTransactions.pop();
+        renderSellTransactions();
+        saveToLocal();
+    }
+
+    function addBuyTransaction(name, qty, price, date) {
+        const total = qty * price;
+        sellTransactions.unshift({ type:'buy', name, qty, price, total, date, timestamp: Date.now() });
+        if(sellTransactions.length > 50) sellTransactions.pop();
+        renderSellTransactions();
+        saveToLocal();
+    }
+
+    function renderSellTransactions() {
+        const container = document.getElementById('transactionsList');
+        if(!container) return;
+        container.innerHTML = '';
+        if(sellTransactions.length === 0) {
+            container.innerHTML = '<div class="label-sm" style="text-align:center;">لا توجد معاملات مسجلة</div>';
+            return;
+        }
+        sellTransactions.forEach(t => {
+            const div = document.createElement('div');
+            div.className = 'transaction-item';
+            if(t.type === 'buy') {
+                div.style.borderRight = '3px solid #10b981';
+                div.innerHTML = `
+                    <div class="transaction-row">
+                        <span style="font-weight:700; color:#10b981;">🟢 شراء</span>
+                        <span>${t.name}</span>
+                        <span class="transaction-qty">${t.qty} سهم</span>
+                        <span>${t.date}</span>
+                    </div>
+                    <div class="transaction-details" style="margin-top:6px; font-size:12px;">
+                        سعر الشراء: ${t.price} ج | الإجمالي: <span style="color:#ef4444;">-${t.total.toFixed(2)} ج</span>
+                    </div>
+                `;
+            } else {
+                div.style.borderRight = '3px solid #ef4444';
+                div.innerHTML = `
+                    <div class="transaction-row">
+                        <span style="font-weight:700; color:#ef4444;">🔴 بيع</span>
+                        <span>${t.name}</span>
+                        <span class="transaction-qty">${t.qty} سهم</span>
+                        <span>${t.date}</span>
+                    </div>
+                    <div class="transaction-details" style="margin-top:6px; font-size:12px;">
+                        سعر البيع: ${t.sellPrice} ج | سعر الشراء: ${t.buyPrice} ج<br>
+                        المكسب: <span style="color:${t.profit>=0?'#10b981':'#ef4444'}">${t.profit>=0?'+':''}${t.profit.toFixed(2)} ج</span>
+                        | النسبة: ${t.profitPercent>=0?'+':''}${t.profitPercent.toFixed(2)}%
+                    </div>
+                `;
+            }
+            container.appendChild(div);
+        });
+        if(hideNumbers) {
+            document.querySelectorAll('.transaction-details').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.transaction-qty').forEach(el => el.style.display = 'none');
+        } else {
+            document.querySelectorAll('.transaction-details').forEach(el => el.style.display = 'block');
+            document.querySelectorAll('.transaction-qty').forEach(el => el.style.display = 'inline');
+        }
+    }
+
+    window.toggleHideNumbers = function() {
+        hideNumbers = !hideNumbers;
+        if(hideNumbers) {
+            document.body.classList.add('hide-numbers');
+            if(chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+        } else {
+            document.body.classList.remove('hide-numbers');
+            updateChart();
+        }
+        renderSellTransactions();
+    };
+
+    function addToDailyProfit(amount, silent=false) {
+        let date = document.getElementById('realDatePicker').value;
+        if (!date) {
+            date = new Date().toISOString().slice(0,10);
+            document.getElementById('realDatePicker').value = date;
+        }
+        if (dailyProfitsMap[date]) dailyProfitsMap[date] += amount;
+        else dailyProfitsMap[date] = amount;
+        if(!silent) {
+            document.getElementById('selectedDateProfitDisplay').innerHTML = (dailyProfitsMap[date] >= 0 ? '+' : '') + dailyProfitsMap[date].toFixed(2) + ' ج';
+            document.getElementById('selectedDateProfitDisplay').style.color = dailyProfitsMap[date] >= 0 ? '#10b981' : '#ef4444';
+        }
+        renderHistoryDates();
+        if(!hideNumbers) updateChart();
+        saveToLocal();
+    }
+
+    function getStockProfitDisplay(stock) {
+        const profit = stock.qty * (stock.current - stock.buy);
+        const percent = stock.buy > 0 ? (profit / (stock.qty * stock.buy)) * 100 : 0;
+        const color = profit >= 0 ? '#10b981' : '#ef4444';
+        const sign = profit >= 0 ? '+' : '';
+        return `<div class="stock-profit-row" style="color:${color};">${sign}${profit.toFixed(2)} ج (${sign}${percent.toFixed(2)}%)</div>`;
+    }
+
+    function renderStocksTable() {
+        const tbody = document.getElementById('stocksGrid');
+        tbody.innerHTML = '';
+        portfolio.forEach((stock, idx) => {
+            const row = tbody.insertRow();
+            row.innerHTML = `
+                <td style="font-weight:700; color:#f1f5f9;">${stock.name}</td>
+                <td class="stock-qty" style="color:#e2e8f0;">${stock.qty.toLocaleString()}</td>
+                <td style="color:#e2e8f0;">${stock.buy.toFixed(4)} ج</td>
+                <td><input type="number" id="curr_price_${idx}" value="${stock.current}" step="0.01" style="width:85px; padding:5px; border-radius:10px; border:1px solid #475569; text-align:center; background:#0f172a; color:white;"></td>
+                <td>${getStockProfitDisplay(stock)}</td>
+            `;
+            const actionRow = tbody.insertRow();
+            actionRow.innerHTML = `
+                <td colspan="5" style="padding:8px 0;">
+                    <div class="stock-actions-container">
+                        <div class="action-row">
+                            <span>🟢 شراء</span>
+                            <input type="number" id="buy_qty_${idx}" placeholder="الكمية">
+                            <input type="number" id="buy_price_${idx}" placeholder="السعر">
+                            <button class="btn-sm-buy" onclick="buyStock(${idx})">شراء</button>
+                        </div>
+                        <div class="action-row">
+                            <span>🔴 بيع</span>
+                            <input type="number" id="sell_qty_${idx}" placeholder="الكمية">
+                            <input type="number" id="sell_price_${idx}" placeholder="السعر">
+                            <button class="btn-sm-sell" onclick="sellStock(${idx})">بيع</button>
+                        </div>
+                    </div>
+                </td>
+            `;
+        });
+        if(hideNumbers) {
+            document.querySelectorAll('.stock-qty').forEach(el => el.style.display = 'none');
+        } else {
+            document.querySelectorAll('.stock-qty').forEach(el => el.style.display = 'table-cell');
+        }
+    }
+
+    window.buyStock = function(idx) {
+        const stock = portfolio[idx];
+        const qty = parseFloat(document.getElementById(`buy_qty_${idx}`).value);
+        const price = parseFloat(document.getElementById(`buy_price_${idx}`).value);
+        if (!qty || qty <= 0 || !price || price <= 0) { alert('ادخل كمية وسعر صحيحين'); return; }
+        const cost = qty * price;
+        if (cost > freeCash) { alert('الكاش الحر غير كافٍ'); return; }
+        const oldPortfolioValue = totalPortfolioValue();
+        freeCash -= cost;
+        const oldTotalCost = stock.qty * stock.buy;
+        stock.qty += qty;
+        stock.buy = (oldTotalCost + cost) / stock.qty;
+        stock.current = price;
+        const newPortfolioValue = totalPortfolioValue();
+        const profitChange = newPortfolioValue - oldPortfolioValue;
+        addToDailyProfit(profitChange);
+        document.getElementById(`buy_qty_${idx}`).value = '';
+        document.getElementById(`buy_price_${idx}`).value = '';
+        addBuyTransaction(stock.name, qty, price, new Date().toLocaleDateString('ar-EG'));
+        refreshUI();
+    };
+
+    window.sellStock = function(idx) {
+        const stock = portfolio[idx];
+        const qty = parseFloat(document.getElementById(`sell_qty_${idx}`).value);
+        const price = parseFloat(document.getElementById(`sell_price_${idx}`).value);
+        if (!qty || qty <= 0 || !price || price <= 0) { alert('ادخل كمية وسعر صحيحين'); return; }
+        if (qty > stock.qty) { alert('كمية أكبر من المتاحة'); return; }
+        
+        const buyPriceAtSell = stock.buy;
+        
+        const oldPortfolioValue = totalPortfolioValue();
+        const revenue = qty * price;
+        freeCash += revenue;
+        stock.qty -= qty;
+        if (stock.qty === 0) portfolio.splice(idx, 1);
+        const newPortfolioValue = totalPortfolioValue();
+        const profitChange = newPortfolioValue - oldPortfolioValue;
+        addToDailyProfit(profitChange);
+        
+        addSellTransaction(stock.name, qty, price, buyPriceAtSell, new Date().toLocaleDateString('ar-EG'));
+        
+        document.getElementById(`sell_qty_${idx}`).value = '';
+        document.getElementById(`sell_price_${idx}`).value = '';
+        refreshUI();
+    };
+
+    window.updatePrices = function() {
+        let totalChange = 0;
+        for (let i = 0; i < portfolio.length; i++) {
+            const newPriceInput = document.getElementById(`curr_price_${i}`);
+            if (newPriceInput) {
+                const newPrice = parseFloat(newPriceInput.value);
+                if (!isNaN(newPrice) && newPrice > 0) {
+                    const stock = portfolio[i];
+                    totalChange += stock.qty * (newPrice - stock.current);
+                    stock.current = newPrice;
+                }
+            }
+        }
+        addToDailyProfit(totalChange);
+        refreshUI();
+        alert(`تم تحديث الأسعار!\nالتغير: ${totalChange >= 0 ? '+' : ''}${totalChange.toFixed(2)} ج`);
+    };
+
+    window.loadDailyProfitByDate = function() {
+        const date = document.getElementById('realDatePicker').value;
+        if (!date) { alert('اختر تاريخاً'); return; }
+        const profit = dailyProfitsMap[date] || 0;
+        document.getElementById('selectedDateProfitDisplay').innerHTML = (profit >= 0 ? '+' : '') + profit.toFixed(2) + ' ج';
+        document.getElementById('selectedDateProfitDisplay').style.color = profit >= 0 ? '#10b981' : '#ef4444';
+    };
+
+    window.addNewStock = function() {
+        const name = document.getElementById('newStockName').value.trim();
+        const qty = parseFloat(document.getElementById('newStockQty').value);
+        const buy = parseFloat(document.getElementById('newStockBuy').value);
+        if (!name || !qty || !buy) { alert('املأ الحقول'); return; }
+        const cost = qty * buy;
+        if (cost > freeCash) {
+            alert('❌ الكاش الحر غير كافٍ!\nالتكلفة: ' + cost.toFixed(2) + ' ج\nالمتاح: ' + freeCash.toFixed(2) + ' ج');
+            return;
+        }
+        freeCash -= cost;
+        portfolio.push({ name, qty, buy, current: buy });
+        document.getElementById('newStockName').value = '';
+        document.getElementById('newStockQty').value = '';
+        document.getElementById('newStockBuy').value = '';
+        document.getElementById('newStockDate').value = '';
+        refreshUI();
+    };
+
+    function renderHistoryDates() {
+        const container = document.getElementById('historyDatesContainer');
+        container.innerHTML = '';
+        const dates = Object.keys(dailyProfitsMap).sort().reverse();
+        if (dates.length === 0) { container.innerHTML = '<div class="label-sm">لا توجد أرباح مسجلة</div>'; return; }
+        dates.forEach(d => {
+            const profit = dailyProfitsMap[d];
+            const color = profit >= 0 ? '#10b981' : '#ef4444';
+            const badge = document.createElement('div');
+            badge.className = 'day-badge';
+            badge.innerHTML = `${d}<br><span style="color:${color};">${profit >= 0 ? '+' : ''}${profit.toFixed(0)} ج</span>`;
+            badge.onclick = () => { document.getElementById('realDatePicker').value = d; loadDailyProfitByDate(); };
+            container.appendChild(badge);
+        });
+        const lastDate = dates[0];
+        document.getElementById('dailyReturnMessage').innerHTML = `📌 آخر يوم: ${lastDate} (${dailyProfitsMap[lastDate] >= 0 ? '+' : ''}${dailyProfitsMap[lastDate].toFixed(2)} ج)`;
+    }
+
+    function refreshUI() {
+        document.getElementById('freeCashDisplay').innerHTML = freeCash.toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج';
+        document.getElementById('netDeposit').innerHTML = getNetDeposit().toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج';
+        document.getElementById('portfolioValue').innerHTML = totalPortfolioValue().toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج';
+        const totalRet = totalPortfolioValue() - getNetDeposit();
+        const retSpan = document.getElementById('totalReturn');
+        retSpan.innerHTML = (totalRet >= 0 ? '+' : '') + totalRet.toLocaleString('ar-EG', { maximumFractionDigits: 2 }) + ' ج';
+        retSpan.className = 'value-large ' + (totalRet >= 0 ? 'green' : 'red');
+        renderStocksTable();
+        saveToLocal();
+    }
+
+    function updateChart() {
+        if(hideNumbers) return;
+        const canvas = document.getElementById('profitChart');
+        if (chartInstance) chartInstance.destroy();
+        const sortedDates = Object.keys(dailyProfitsMap).sort();
+        if(sortedDates.length === 0) return;
+
+        // حساب الأرباح التراكمية
+        let cumulative = 0;
+        const cumulativeData = sortedDates.map(d => {
+            cumulative += dailyProfitsMap[d];
+            return parseFloat(cumulative.toFixed(2));
+        });
+
+        chartInstance = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: sortedDates,
+                datasets: [
+                    {
+                        label: 'العائد التراكمي (ج)',
+                        data: cumulativeData,
+                        borderColor: cumulativeData[cumulativeData.length-1] >= 0 ? '#10b981' : '#ef4444',
+                        backgroundColor: cumulativeData[cumulativeData.length-1] >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: cumulativeData.map(v => v >= 0 ? '#10b981' : '#ef4444')
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { position: 'top', labels: { font: { size: 10 }, color: '#e2e8f0' } } },
+                scales: {
+                    y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } },
+                    x: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: '#334155' } }
+                }
+            }
+        });
+    }
+
+    window.processDeposit = function() {
+        const amt = parseFloat(document.getElementById('moneyAmount').value);
+        if (!amt || amt <= 0) { alert('أدخل مبلغاً صحيحاً'); return; }
+        totalDeposits += amt;
+        freeCash += amt;
+        refreshUI();
+        document.getElementById('moneyAmount').value = '';
+    };
+    window.processWithdraw = function() {
+        const amt = parseFloat(document.getElementById('moneyAmount').value);
+        if (!amt || amt <= 0) { alert('أدخل مبلغاً صحيحاً'); return; }
+        if (amt > freeCash) { alert('الكاش الحر غير كافٍ'); return; }
+        totalWithdraws += amt;
+        freeCash -= amt;
+        refreshUI();
+        document.getElementById('moneyAmount').value = '';
+    };
+
+    window.resetWallet = function() {
+        document.getElementById('resetModal').classList.add('active');
+    };
+    window.closeResetModal = function() {
+        document.getElementById('resetModal').classList.remove('active');
+    };
+    window.confirmReset = function() {
+        totalDeposits = 0;
+        totalWithdraws = 0;
+        freeCash = 0;
+        portfolio = [];
+        dailyProfitsMap = {};
+        sellTransactions = [];
+        localStorage.removeItem('portfolioFinalDark_v2');
+        if(chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        closeResetModal();
+        refreshUI();
+        renderHistoryDates();
+        renderSellTransactions();
+        document.getElementById('selectedDateProfitDisplay').innerHTML = '— ج';
+        document.getElementById('selectedDateProfitDisplay').style.color = '#94a3b8';
+    };
+
+    function saveToLocal() { localStorage.setItem('portfolioFinalDark_v2', JSON.stringify({ totalDeposits, totalWithdraws, freeCash, portfolio, dailyProfitsMap, sellTransactions })); }
+    function loadFromLocal() {
+        const saved = localStorage.getItem('portfolioFinalDark_v2');
+        if(saved) {
+            try {
+                const d = JSON.parse(saved);
+                totalDeposits = d.totalDeposits;
+                totalWithdraws = d.totalWithdraws;
+                freeCash = d.freeCash;
+                portfolio = d.portfolio;
+                dailyProfitsMap = d.dailyProfitsMap || {};
+                sellTransactions = d.sellTransactions || [];
+            } catch(e) {}
+        }
+    }
+
+    loadFromLocal();
+    refreshUI();
+    renderHistoryDates();
+    renderSellTransactions();
+    const today = new Date().toISOString().slice(0,10);
+    if(!document.getElementById('realDatePicker').value) document.getElementById('realDatePicker').value = today;
+    loadDailyProfitByDate();
+    updateChart();
+</script>
+</body>
+</html>
