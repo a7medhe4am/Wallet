@@ -1,47 +1,47 @@
 import yfinance as yf
 import json
-from datetime import datetime
 
-def fetch_current_prices():
-    # قراءة الأسهم من portfolio_symbols.json
+symbols = [
+    "COMI","HRHO","OIH","CSAG","MEPA","OCDI","ARCC","NIPH","CCAP","UEGC","PHAR","AFMC","ORHD","EKHOA","SVCE",
+    "MPCO","EFIH","AMER","VALU","EGTS","BIOC","ETRS","EEII","ISMQ","ELSH","TMGH","BTFH","SIPC","FWRY","ISPH",
+    "AMES","POUL","SKPC","CEFM","RAYA","EMFD","RMDA","ABUK","ORAS","HELI","DAPH","ZEOT","LCSW","SCFM","MILS",
+    "MCQE","ALCN","SWDY","AMIA","DSCW","COSG","MFPC","TAQA","MPRC","EIUD","ASCM","ORWE","PHGC","MENA","COPR",
+    "ICFC","IDRE","EBSC","CAED","AMOC","MASR","JUFO","KRDI","IEEC","INEG","PRDC","IRON","EFID","ODIN","ELEC",
+    "GIHD","CRST","ISMA","ACTF","BONY","ETEL","GGRN","ADCI","CNFN","GDWA","KASABF","MOED","ARAB","PRMH","OFH",
+    "ACAMD","EAST","INFI","EGCH","CIRA","KZPC","MTIE","TANM","ROTO","NCCW","KABO","EHDR","UNIP","MCRO","ATLC",
+    "PHTV","SUGR","ELKA","CIEB","ARVA","CLHO","DGTZ","ENGC","OLFI","GGCC","EFIC","AREH","ICID","FERC","MBEG",
+    "AFDI","GTWL","SDTI","IFAP","QNBE","CPCI","EASB","SPMD","PRCL","HDBK","RREI","ACGC","NARE","MBSC","FAIT",
+    "AIDC","MICH","SAUD","MAAL","CERA","EGAS","ASPI","WKOL","EXPA","FTNS","TALM","AIFI","MOIN","AJWA","NHPS",
+    "ECAP","RUBX","ACAP","OBRI","AALR","MHOT","EDFM","ALUM","SUCE","EPCO","TORA","GRCA","LUTS","AIHC","APSW",
+    "ADPC","ICMI","MOSC","ELWA","EALR","SEIG","CANA","BINV","HBCO","AXPH","SNFC","UNIT","OCPH","SPIN","NINH",
+    "RTVC","UEFM","ANFI","DOMT","CCRS","KWIN","GSSC","AMPI","IBCT","ADRI","SMFR","SCTS","EPPK","BIGP","DTPP",
+    "NEDA","WCDF","ACRO","ELNA","MIPH","VERT","ESRS","CICH","HCFI","NAPR","RAKT","APPC","EGREF","UASG","GTHE",
+    "RKAZ","MFSC","GMCI","FNAR","ESAC","SNFI","UPMS","EGX30ETF","UBEE","BIDI","EKHO","ALEX","DIFC","EGBE","FIRE",
+    "MOIL","FAITA","NCGC","MKIT","UTOP","NAHO","PACH","EOSB","EGSA","WATP","SMPP","GTEX","EITP","NBKE"
+]
+
+prices = {}
+
+for sym in symbols:
+    ticker = sym + ".CA"
     try:
-        with open('portfolio_symbols.json', 'r') as f:
-            data = json.load(f)
-            symbols = data.get('symbols', [])
-    except:
-        print("⚠️ ملف portfolio_symbols.json مش موجود")
-        return
-    
-    if not symbols:
-        print("⚠️ مفيش أسهم في الملف")
-        return
-    
-    print(f"📊 جاري تحديث {len(symbols)} سهم...")
-    prices = {}
-    
-    for symbol in symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period="2d")
-            if not data.empty:
-                current_price = round(data['Close'].iloc[-1], 2)
-                prices[symbol] = current_price
-                print(f"✅ {symbol}: {current_price} EGP")
+        data = yf.download(ticker, period="5d", progress=False, auto_adjust=False)
+        if data is not None and not data.empty:
+            close = data["Close"].iloc[-1]
+            if hasattr(close, 'item'):
+                close = close.item()
+            price = round(float(close), 4)
+            if price > 0:
+                prices[sym] = price
+                print(f"✅ {sym}: {price}")
             else:
-                prices[symbol] = None
-                print(f"❌ {symbol}: مفيش بيانات")
-        except Exception as e:
-            print(f"❌ {symbol}: خطأ - {str(e)}")
-            prices[symbol] = None
-    
-    with open('prices.json', 'w') as f:
-        json.dump({
-            'last_update': datetime.now().isoformat(),
-            'prices': prices
-        }, f, indent=2)
-    
-    updated = len([p for p in prices.values() if p])
-    print(f"\n✅ تم تحديث {updated} من {len(symbols)} سهم")
+                print(f"— {sym}: invalid price")
+        else:
+            print(f"— {sym}: no data")
+    except Exception as e:
+        print(f"❌ {sym}: {e}")
 
-if __name__ == "__main__":
-    fetch_current_prices()
+with open("prices.json", "w") as f:
+    json.dump(prices, f, indent=2)
+
+print(f"\nDone: {len(prices)} prices saved")
