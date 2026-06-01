@@ -160,7 +160,7 @@
     <div class="card">
         <div class="card-header" id="addStockHeader">➕ Add Stock</div>
         <div class="add-stock-row">
-            <input type="text" id="newStockName" placeholder="Name">
+            <input type="text" id="newStockName" placeholder="Symbol (e.g., TMGH)">
             <input type="number" id="newStockQty" placeholder="Quantity">
             <input type="number" id="newStockBuy" placeholder="Buy Price">
             <input type="date" id="newStockDate">
@@ -175,8 +175,10 @@
                 <tbody id="stocksGrid"></tbody>
             </table>
         </div>
-        <button id="updateAllBtn" style="margin-top:16px;background:#10b981;padding:12px;" onclick="updatePrices()">🔄 Update Prices</button>
-        <button id="autoPriceBtn" style="margin-top:8px;background:#3b82f6;padding:12px;" onclick="autoUpdatePrices()">🔄 Auto Update Prices</button>
+        <div class="row-2col" style="margin-top:16px;">
+            <button id="updateAllBtn" style="background:#10b981;padding:12px;" onclick="updatePricesManually()">🔄 Update Prices (Manual)</button>
+            <button id="autoPriceBtn" style="background:#3b82f6;padding:12px;" onclick="autoUpdatePrices()">📡 Auto Update (From prices.json)</button>
+        </div>
     </div>
     <div class="card">
         <div class="card-header" id="historyHeader">📆 Profit History</div>
@@ -195,51 +197,60 @@
 <script>
     let totalDeposits=0,totalWithdraws=0,freeCash=0,portfolio=[],dailyProfitsMap={},sellTransactions=[],chartInstance=null,hideNumbers=false,currentLang='en',manualReturnApplied=false,manualReturnValue=0,importedKeys=[];
 
+    function formatSymbol(symbol){ return symbol.trim().toUpperCase(); }
+
     function getSelectedDate(){let d=document.getElementById('realDatePicker').value;if(!d){d=new Date().toISOString().slice(0,10);document.getElementById('realDatePicker').value=d;}return d;}
     function stocksValue(){return portfolio.reduce((s,p)=>s+p.qty*p.current,0);}
     function totalPortfolioValue(){return stocksValue()+freeCash;}
     function getNetDeposit(){return totalDeposits-totalWithdraws;}
     function getTotalReturn(){return totalPortfolioValue()-getNetDeposit();}
 
-    // ======= تحديث تلقائي من prices.json =======
+    // تحديث يدوي من الحقول
+    window.updatePricesManually=function(){
+        let ch=0;
+        for(let i=0;i<portfolio.length;i++){const el=document.getElementById(`curr_price_${i}`);if(el){const p=parseFloat(el.value);if(!isNaN(p)&&p>0){ch+=portfolio[i].qty*(p-portfolio[i].current);portfolio[i].current=p;}}}
+        if(ch!==0) addToDailyProfit(ch);
+        refreshUI();
+        const curr=currentLang==='ar'?' ج':' EGP';
+        if(ch!==0)alert((currentLang==='ar'?'تم التحديث!\nالتغير: ':'Updated!\nChange: ')+(ch>=0?'+':'')+ch.toFixed(2)+curr);
+        else alert(currentLang==='ar'?'لا توجد تغييرات':'No changes');
+    };
+
+    // تحديث تلقائي من prices.json
     async function autoUpdatePrices(){
         const btn=document.getElementById('autoPriceBtn');
         const isAr=currentLang==='ar';
         btn.innerHTML='⏳ '+(isAr?'جاري التحديث...':'Fetching...');
         btn.disabled=true;
         try{
-            const res=await fetch('prices.json?t='+Date.now());
+            const res=await fetch('https://a7medhe4am.github.io/Protfolio-/prices.json?t='+Date.now());
             if(!res.ok) throw new Error('not found');
-            const prices=await res.json();
+            const data=await res.json();
+            const pricesData = data.prices || data;
             let updated=0,change=0;
             portfolio.forEach(s=>{
-                if(prices[s.name]&&prices[s.name]>0){
-                    change+=s.qty*(prices[s.name]-s.current);
-                    s.current=prices[s.name];
+                let symbolName = s.name;
+                if(pricesData[symbolName] && pricesData[symbolName]>0){
+                    change+=s.qty*(pricesData[symbolName]-s.current);
+                    s.current=pricesData[symbolName];
                     updated++;
                 }
             });
             if(updated>0){
-                addToDailyProfit(change);
+                if(change!==0) addToDailyProfit(change);
                 refreshUI();
                 btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)');
             } else {
                 btn.innerHTML='⚠️ '+(isAr?'مفيش أسعار جديدة':'No new prices');
             }
-            // حدّث portfolio_symbols.json
-            syncSymbols();
         }catch(e){
+            console.error(e);
             btn.innerHTML='❌ '+(isAr?'فشل التحديث':'Update failed');
         }
         setTimeout(()=>{
-            btn.innerHTML=currentLang==='ar'?'🔄 تحديث تلقائي':'🔄 Auto Update Prices';
+            btn.innerHTML=currentLang==='ar'?'📡 تحديث تلقائي':'📡 Auto Update';
             btn.disabled=false;
         },3000);
-    }
-
-    function syncSymbols(){
-        // بنحفظ الرموز الموجودة في localStorage عشان fetch_prices.py يعرفها
-        localStorage.setItem('portfolio_symbols',JSON.stringify(portfolio.map(s=>s.name)));
     }
 
     function addSellTransaction(name,qty,sellPrice,buyPrice,date){
@@ -297,8 +308,17 @@
         renderHistoryDates();if(!hideNumbers)updateChart();saveToLocal();
     }
 
+    function getStockProfitPercent(s){
+        if(s.buy<=0) return 0;
+        return (s.current - s.buy) / s.buy * 100;
+    }
+
     function getStockProfitDisplay(s){
-        const p=s.qty*(s.current-s.buy),pct=s.buy>0?(p/(s.qty*s.buy))*100:0,c=p>=0?'#10b981':'#ef4444',sg=p>=0?'+':'',curr=currentLang==='ar'?' ج':' EGP';
+        const p=s.qty*(s.current-s.buy);
+        const pct=getStockProfitPercent(s);
+        const c=p>=0?'#10b981':'#ef4444';
+        const sg=p>=0?'+':'';
+        const curr=currentLang==='ar'?' ج':' EGP';
         return `<div class="stock-profit-row" style="color:${c};">${sg}${p.toFixed(2)}${curr} (${sg}${pct.toFixed(2)}%)</div>`;
     }
     function getStockValueDisplay(s){
@@ -307,20 +327,28 @@
     }
 
     function renderStocksTable(){
-        const tbody=document.getElementById('stocksGrid');tbody.innerHTML='';
-        portfolio.forEach((s,i)=>{
+        const tbody=document.getElementById('stocksGrid');
+        tbody.innerHTML='';
+        // ترتيب الأسهم من الأعلى ربحية (نسبة مئوية) إلى الأقل
+        const sortedPortfolio = [...portfolio].sort((a,b)=>{
+            const pctA = getStockProfitPercent(a);
+            const pctB = getStockProfitPercent(b);
+            return pctB - pctA;
+        });
+        sortedPortfolio.forEach((s,i)=>{
+            const originalIdx = portfolio.findIndex(p=>p.name===s.name);
             const curr=currentLang==='ar'?'ج':'EGP';
             const r=tbody.insertRow();
             r.innerHTML=`<td style="font-weight:700;">${s.name}${getStockValueDisplay(s)}</td>
                 <td class="stock-qty">${s.qty.toLocaleString()}</td>
                 <td>${s.buy.toFixed(4)} ${curr}</td>
-                <td><input type="number" id="curr_price_${i}" value="${s.current}" step="0.01" style="width:85px;padding:5px;border-radius:10px;border:1px solid #475569;text-align:center;background:#0f172a;color:white;"></td>
+                <td><input type="number" id="curr_price_${originalIdx}" value="${s.current}" step="0.01" style="width:85px;padding:5px;border-radius:10px;border:1px solid #475569;text-align:center;background:#0f172a;color:white;"></td>
                 <td>${getStockProfitDisplay(s)}</td>`;
             const ar=tbody.insertRow();
             ar.innerHTML=`<td colspan="5" style="padding:8px 0;">
                 <div class="stock-actions-container">
-                    <div class="action-row"><span>${currentLang==='ar'?'🟢 شراء':'🟢 Buy'}</span><input type="number" id="buy_qty_${i}" placeholder="${currentLang==='ar'?'الكمية':'Qty'}"><input type="number" id="buy_price_${i}" placeholder="${currentLang==='ar'?'السعر':'Price'}"><button class="btn-sm-buy" onclick="buyStock(${i})">${currentLang==='ar'?'شراء':'Buy'}</button></div>
-                    <div class="action-row"><span>${currentLang==='ar'?'🔴 بيع':'🔴 Sell'}</span><input type="number" id="sell_qty_${i}" placeholder="${currentLang==='ar'?'الكمية':'Qty'}"><input type="number" id="sell_price_${i}" placeholder="${currentLang==='ar'?'السعر':'Price'}"><button class="btn-sm-sell" onclick="sellStock(${i})">${currentLang==='ar'?'بيع':'Sell'}</button></div>
+                    <div class="action-row"><span>${currentLang==='ar'?'🟢 شراء':'🟢 Buy'}</span><input type="number" id="buy_qty_${originalIdx}" placeholder="${currentLang==='ar'?'الكمية':'Qty'}"><input type="number" id="buy_price_${originalIdx}" placeholder="${currentLang==='ar'?'السعر':'Price'}"><button class="btn-sm-buy" onclick="buyStock(${originalIdx})">${currentLang==='ar'?'شراء':'Buy'}</button></div>
+                    <div class="action-row"><span>${currentLang==='ar'?'🔴 بيع':'🔴 Sell'}</span><input type="number" id="sell_qty_${originalIdx}" placeholder="${currentLang==='ar'?'الكمية':'Qty'}"><input type="number" id="sell_price_${originalIdx}" placeholder="${currentLang==='ar'?'السعر':'Price'}"><button class="btn-sm-sell" onclick="sellStock(${originalIdx})">${currentLang==='ar'?'بيع':'Sell'}</button></div>
                 </div></td>`;
         });
         if(hideNumbers){document.querySelectorAll('.stock-qty').forEach(e=>e.style.display='none');document.querySelectorAll('.stock-value-row').forEach(e=>e.style.display='none');}
@@ -348,21 +376,18 @@
         addSellTransaction(s.name,qty,price,bp,getSelectedDate());
         document.getElementById(`sell_qty_${i}`).value='';document.getElementById(`sell_price_${i}`).value='';refreshUI();
     };
-    window.updatePrices=function(){
-        let ch=0;
-        for(let i=0;i<portfolio.length;i++){const el=document.getElementById(`curr_price_${i}`);if(el){const p=parseFloat(el.value);if(!isNaN(p)&&p>0){ch+=portfolio[i].qty*(p-portfolio[i].current);portfolio[i].current=p;}}}
-        addToDailyProfit(ch);refreshUI();
-        const curr=currentLang==='ar'?' ج':' EGP';
-        if(ch!==0)alert((currentLang==='ar'?'تم التحديث!\nالتغير: ':'Updated!\nChange: ')+(ch>=0?'+':'')+ch.toFixed(2)+curr);
-    };
     window.loadDailyProfitByDate=function(){
         const date=getSelectedDate(),p=dailyProfitsMap[date]||0,curr=currentLang==='ar'?' ج':' EGP';
         document.getElementById('selectedDateProfitDisplay').innerHTML=(p>=0?'+':'')+p.toFixed(2)+curr;
         document.getElementById('selectedDateProfitDisplay').style.color=p>=0?'#10b981':'#ef4444';
     };
     window.addNewStock=function(){
-        const name=document.getElementById('newStockName').value.trim(),qty=parseFloat(document.getElementById('newStockQty').value),buy=parseFloat(document.getElementById('newStockBuy').value),dateInput=document.getElementById('newStockDate').value;
-        if(!name||!qty||!buy){alert(currentLang==='ar'?'املأ الحقول':'Fill fields');return;}
+        let name=formatSymbol(document.getElementById('newStockName').value);
+        if(!name){alert(currentLang==='ar'?'أدخل رمز السهم':'Enter stock symbol');return;}
+        const qty=parseFloat(document.getElementById('newStockQty').value);
+        const buy=parseFloat(document.getElementById('newStockBuy').value);
+        const dateInput=document.getElementById('newStockDate').value;
+        if(!qty||!buy){alert(currentLang==='ar'?'املأ الكمية وسعر الشراء':'Fill quantity and buy price');return;}
         const cost=qty*buy;
         if(cost>freeCash){alert((currentLang==='ar'?'❌ الكاش غير كافٍ!\nالتكلفة: ':'❌ Insufficient cash!\nCost: ')+cost.toFixed(2)+(currentLang==='ar'?' ج\nالمتاح: ':' EGP\nAvailable: ')+freeCash.toFixed(2)+(currentLang==='ar'?' ج':' EGP'));return;}
         const old=totalPortfolioValue();freeCash-=cost;
@@ -399,7 +424,7 @@
         document.getElementById('portfolioValue').innerHTML=fmt(totalPortfolioValue());
         const ret=getTotalReturn(),el=document.getElementById('totalReturn');
         el.innerHTML=(ret>=0?'+':'')+fmt(ret);el.className='value-large '+(ret>=0?'green':'red');
-        renderStocksTable();syncSymbols();saveToLocal();
+        renderStocksTable();saveToLocal();
     }
 
     window.applyManualReturn=function(){
@@ -443,7 +468,7 @@
     window.closeResetModal=function(){document.getElementById('resetModal').classList.remove('active');};
     window.confirmReset=function(){
         totalDeposits=0;totalWithdraws=0;freeCash=0;portfolio=[];dailyProfitsMap={};sellTransactions=[];importedKeys=[];manualReturnApplied=false;manualReturnValue=0;
-        localStorage.removeItem('portfolioFinalDark_v8');
+        localStorage.removeItem('portfolioFinalDark_v10');
         if(chartInstance){chartInstance.destroy();chartInstance=null;}
         closeResetModal();
         document.getElementById('manualReturnCard').style.opacity='1';
@@ -483,8 +508,8 @@
         document.getElementById('addStockHeader').innerHTML=isAr?'➕ إضافة سهم':'➕ Add Stock';
         document.getElementById('addStockBtn').innerHTML=isAr?'➕ أضف':'➕ Add';
         document.getElementById('stocksHeader').innerHTML=isAr?'📋 الأسهم':'📋 Stocks';
-        document.getElementById('updateAllBtn').innerHTML=isAr?'🔄 تحديث الأسعار':'🔄 Update Prices';
-        document.getElementById('autoPriceBtn').innerHTML=isAr?'🔄 تحديث تلقائي':'🔄 Auto Update Prices';
+        document.getElementById('updateAllBtn').innerHTML=isAr?'🔄 تحديث يدوي':'🔄 Update (Manual)';
+        document.getElementById('autoPriceBtn').innerHTML=isAr?'📡 تحديث تلقائي':'📡 Auto Update';
         document.getElementById('historyHeader').innerHTML=isAr?'📆 سجل الأرباح':'📆 Profit History';
         document.getElementById('chartHeader').innerHTML=isAr?'📊 العائد التراكمي':'📊 Cumulative Return';
         document.getElementById('transactionsHeader').innerHTML=isAr?'📋 المعاملات (شراء وبيع)':'📋 Transactions (Buy/Sell)';
@@ -498,7 +523,7 @@
         document.getElementById('resetCancelBtn').innerHTML=isAr?'إلغاء':'Cancel';
         document.getElementById('resetConfirmBtn').innerHTML=isAr?'امسح كل حاجة':'Delete All';
         document.getElementById('moneyAmount').placeholder=isAr?'المبلغ':'Amount';
-        document.getElementById('newStockName').placeholder=isAr?'الاسم':'Name';
+        document.getElementById('newStockName').placeholder=isAr?'رمز السهم (مثال: TMGH)':'Symbol (e.g., TMGH)';
         document.getElementById('newStockQty').placeholder=isAr?'الكمية':'Quantity';
         document.getElementById('newStockBuy').placeholder=isAr?'سعر الشراء':'Buy Price';
         if(!document.getElementById('csvFileName').dataset.hasFile)document.getElementById('csvFileName').innerHTML=isAr?'اضغط لاختيار ملف CSV':'Tap to choose CSV file';
@@ -516,10 +541,10 @@
     }
 
     function saveToLocal(){
-        localStorage.setItem('portfolioFinalDark_v8',JSON.stringify({totalDeposits,totalWithdraws,freeCash,portfolio,dailyProfitsMap,sellTransactions,importedKeys,lang:currentLang,hideNumbers,manualReturnApplied,manualReturnValue}));
+        localStorage.setItem('portfolioFinalDark_v10',JSON.stringify({totalDeposits,totalWithdraws,freeCash,portfolio,dailyProfitsMap,sellTransactions,importedKeys,lang:currentLang,hideNumbers,manualReturnApplied,manualReturnValue}));
     }
     function loadFromLocal(){
-        const s=localStorage.getItem('portfolioFinalDark_v8');
+        const s=localStorage.getItem('portfolioFinalDark_v10');
         if(s){try{const d=JSON.parse(s);totalDeposits=d.totalDeposits||0;totalWithdraws=d.totalWithdraws||0;freeCash=d.freeCash||0;portfolio=d.portfolio||[];dailyProfitsMap=d.dailyProfitsMap||{};sellTransactions=d.sellTransactions||[];importedKeys=d.importedKeys||[];if(d.lang)currentLang=d.lang;if(d.hideNumbers!==undefined)hideNumbers=d.hideNumbers;if(d.manualReturnApplied!==undefined)manualReturnApplied=d.manualReturnApplied;if(d.manualReturnValue!==undefined)manualReturnValue=d.manualReturnValue;}catch(e){}}
         document.documentElement.lang=currentLang;document.documentElement.dir=currentLang==='ar'?'rtl':'ltr';
         if(hideNumbers)document.body.classList.add('hide-numbers');
