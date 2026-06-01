@@ -2,36 +2,30 @@ name: Fetch Stock Prices
 
 on:
   schedule:
-    - cron: '0 10,14,18 * * 1-5'
+    - cron: '0 18 * * 0-4'  # 8 مساءً بتوقيت القاهرة (UTC+2) أيام الأحد للخميس
   workflow_dispatch:
 
 jobs:
-  fetch-prices:
+  fetch:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install yfinance pandas
+        run: pip install yfinance pandas
 
-      - name: Run fetch script
+      - name: Fetch prices
         run: python fetch_prices.py
 
-      - name: Commit and push
+      - name: Commit prices.json
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add prices.json
-          git diff --staged --quiet || git commit -m "Auto-update prices [skip ci]"
-          git diff --staged --quiet || git push
+          git diff --staged --quiet || git commit -m "Update prices $(date +'%Y-%m-%d %H:%M')"
+          git push
