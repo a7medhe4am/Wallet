@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
@@ -237,7 +238,16 @@
                 }
             });
             if(updated>0){
-                if(change!==0) addToDailyProfit(change);
+                if(change!==0){
+                    // Auto Update دايماً يسجل في أمس لأن yfinance متأخر يوم
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const profitDate = yesterday.toISOString().slice(0,10);
+                    const currentDate = document.getElementById('realDatePicker').value;
+                    document.getElementById('realDatePicker').value = profitDate;
+                    addToDailyProfit(change);
+                    document.getElementById('realDatePicker').value = currentDate;
+                }
                 refreshUI();
                 btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)');
             } else {
