@@ -1,5 +1,6 @@
 import yfinance as yf
 import json
+from datetime import datetime
 
 symbols = [
     "COMI","HRHO","OIH","CSAG","MEPA","OCDI","ARCC","NIPH","CCAP","UEGC","PHAR","AFMC","ORHD","EKHOA","SVCE",
@@ -21,6 +22,7 @@ symbols = [
 ]
 
 prices = {}
+today = datetime.utcnow().strftime('%Y-%m-%d')
 
 for sym in symbols:
     ticker = sym + ".CA"
@@ -41,7 +43,11 @@ for sym in symbols:
     except Exception as e:
         print(f"❌ {sym}: {e}")
 
-with open("prices.json", "w") as f:
-    json.dump(prices, f, indent=2)
+# نضيف تاريخ التحديث
+output = {"last_updated": today}
+output.update(prices)
 
-print(f"\nDone: {len(prices)} prices saved")
+with open("prices.json", "w") as f:
+    json.dump(output, f, indent=2)
+
+print(f"\nDone: {len(prices)} prices saved, date: {today}")
