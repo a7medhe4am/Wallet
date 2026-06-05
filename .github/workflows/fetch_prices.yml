@@ -30,3 +30,10 @@ jobs:
           git add prices.json
           git diff --staged --quiet || git commit -m "Update prices $(date +'%Y-%m-%d %H:%M')"
           git push
+
+      - name: Trigger GitHub Pages deployment
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.PERSONAL_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/a7medhe4am/Wallet/pages/builds
