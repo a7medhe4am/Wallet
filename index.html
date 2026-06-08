@@ -237,12 +237,18 @@
                 return;
             }
 
+            // احسب الفرق الأول قبل ما تحدث الأسعار
             let updated=0,change=0;
             portfolio.forEach(s=>{
                 if(data[s.name]&&data[s.name]>0){
                     change+=s.qty*(data[s.name]-s.current);
-                    s.current=data[s.name];
                     updated++;
+                }
+            });
+            // بعدين حدث الأسعار
+            portfolio.forEach(s=>{
+                if(data[s.name]&&data[s.name]>0){
+                    s.current=data[s.name];
                 }
             });
             if(updated>0){
@@ -258,7 +264,7 @@
                 }
                 if(lastUpdated)localStorage.setItem('lastAutoUpdate',lastUpdated);
                 refreshUI();
-                btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)');
+                btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)')+(change!==0?' (+'+change.toFixed(2)+')':'');
             } else {
                 btn.innerHTML='⚠️ '+(isAr?'مفيش أسعار جديدة':'No new prices');
             }
