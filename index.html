@@ -227,12 +227,21 @@
             const res=await fetch('prices.json?nocache='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, must-revalidate','Pragma':'no-cache'}});
             if(!res.ok)throw new Error('not found');
             const data=await res.json();
-            const pricesData=data.prices||data;
+
+            // تحقق من تاريخ التحديث - مرة واحدة في اليوم بس
+            const lastUpdated=data.last_updated||'';
+            const lastAutoUpdate=localStorage.getItem('lastAutoUpdate')||'';
+            if(lastUpdated&&lastUpdated===lastAutoUpdate){
+                btn.innerHTML='ℹ️ '+(isAr?'تم التحديث النهارده بالفعل':'Already updated today');
+                setTimeout(()=>{btn.innerHTML=isAr?'📡 تحديث تلقائي':'📡 Auto Update';btn.disabled=false;},3000);
+                return;
+            }
+
             let updated=0,change=0;
             portfolio.forEach(s=>{
-                if(pricesData[s.name]&&pricesData[s.name]>0){
-                    change+=s.qty*(pricesData[s.name]-s.current);
-                    s.current=pricesData[s.name];
+                if(data[s.name]&&data[s.name]>0){
+                    change+=s.qty*(data[s.name]-s.current);
+                    s.current=data[s.name];
                     updated++;
                 }
             });
@@ -247,6 +256,7 @@
                     addToDailyProfit(change);
                     document.getElementById('realDatePicker').value=currentDate;
                 }
+                if(lastUpdated)localStorage.setItem('lastAutoUpdate',lastUpdated);
                 refreshUI();
                 btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)');
             } else {
