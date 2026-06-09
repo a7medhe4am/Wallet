@@ -2,13 +2,16 @@ name: Fetch Stock Prices
 
 on:
   schedule:
-    - cron: '0 1 * * 0-4'   # 6 صباحاً بتوقيت القاهرة (UTC+2)
-    - cron: '0 5 * * 0-4'   # 8 صباحاً بتوقيت القاهرة - backup
+    - cron: '0 23 * * 0-4'  # 2 صباحاً بتوقيت القاهرة (UTC+3)
+    - cron: '0 1 * * 0-4'   # 4 صباحاً بتوقيت القاهرة (UTC+3)
   workflow_dispatch:
 
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -33,7 +36,8 @@ jobs:
 
       - name: Trigger GitHub Pages deployment
         run: |
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.PERSONAL_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/a7medhe4am/Wallet/pages/builds
+          curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.PERSONAL_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/a7medhe4am/Wallet/pages/builds || true
