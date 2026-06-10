@@ -243,7 +243,6 @@
             if(updated>0){
                 if(change!==0){
                     saveUndoState();
-                    // يسجل دايماً في أمس لأن yfinance متأخر يوم
                     const yesterday=new Date();
                     yesterday.setDate(yesterday.getDate()-1);
                     const profitDate=yesterday.toISOString().slice(0,10);
