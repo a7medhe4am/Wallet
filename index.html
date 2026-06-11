@@ -218,37 +218,52 @@
         else alert(currentLang==='ar'?'لا توجد تغييرات':'No changes');
     };
 
-    // ========== التعديل الأساسي هنا ==========
+    // ========== Auto Update - تتجاوز الكاش بالكامل وتضيف الأرباح ليوم أمس ==========
     async function autoUpdatePrices(){
         const btn=document.getElementById('autoPriceBtn');
         const isAr=currentLang==='ar';
         btn.innerHTML='⏳ '+(isAr?'جاري التحديث...':'Fetching...');
         btn.disabled=true;
         try{
-            const res=await fetch('prices.json?nocache='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, must-revalidate','Pragma':'no-cache'}});
-            if(!res.ok)throw new Error('not found');
+            // تجاوز الكاش بالكامل (timestamp + random + headers)
+            const url = 'prices.json?force=' + Date.now() + '_' + Math.random();
+            const res=await fetch(url, {
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            });
+            if(!res.ok) throw new Error('File not found');
             const data=await res.json();
-            let updated=0,change=0;
+            
+            let updated=0, change=0;
             portfolio.forEach(s=>{
-                if(data[s.name]&&data[s.name]>0){
-                    change+=s.qty*(data[s.name]-s.current);
+                if(data[s.name] && data[s.name] > 0){
+                    change += s.qty * (data[s.name] - s.current);
                     updated++;
                 }
             });
-            if(updated>0){
+            
+            if(updated > 0){
+                // تحديث الأسعار في المحفظة
                 portfolio.forEach(s=>{
-                    if(data[s.name]&&data[s.name]>0) s.current=data[s.name];
+                    if(data[s.name] && data[s.name] > 0) s.current = data[s.name];
                 });
-                if(change!==0){
+                
+                if(change !== 0){
                     // تاريخ الأمس
-                    const yesterday=new Date();
-                    yesterday.setDate(yesterday.getDate()-1);
-                    const profitDate=yesterday.toISOString().slice(0,10);
-                    // إضافة الربح ليوم أمس مباشرة (وليس لليوم المختار)
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const profitDate = yesterday.toISOString().slice(0,10);
+                    
+                    // إضافة الربح ليوم أمس مباشرة
                     dailyProfitsMap[profitDate] = (dailyProfitsMap[profitDate] || 0) + change;
                     renderHistoryDates();
                     if(!hideNumbers) updateChart();
                     saveToLocal();
+                    
                     // تحديث العرض لو التقويم كان شايف يوم أمس
                     if(getSelectedDate() === profitDate) loadDailyProfitByDate();
                     
@@ -259,11 +274,11 @@
                     btn.innerHTML='⚠️ '+(isAr?'مفيش تغيير في الأسعار':'No price change');
                 }
             } else {
-                btn.innerHTML='⚠️ '+(isAr?'مفيش أسعار':'No prices found');
+                btn.innerHTML='⚠️ '+(isAr?'مفيش أسعار في الملف':'No prices found in file');
             }
-        }catch(e){
+        } catch(e){
             console.error(e);
-            btn.innerHTML='❌ '+(isAr?'فشل التحديث':'Update failed');
+            btn.innerHTML='❌ '+(isAr?'فشل التحديث - تأكد من وجود prices.json':'Update failed - Make sure prices.json exists');
         }
         setTimeout(()=>{
             btn.innerHTML=currentLang==='ar'?'📡 تحديث تلقائي':'📡 Auto Update';
