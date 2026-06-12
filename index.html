@@ -218,15 +218,25 @@
         else alert(currentLang==='ar'?'لا توجد تغييرات':'No changes');
     };
 
-    // ========== Auto Update - تتجاوز الكاش بالكامل وتضيف الأرباح ليوم أمس ==========
+    // ========== AUTO UPDATE - يتجاوز الكاش بالكامل ويضيف أرباح الأمس ==========
     async function autoUpdatePrices(){
         const btn=document.getElementById('autoPriceBtn');
         const isAr=currentLang==='ar';
         btn.innerHTML='⏳ '+(isAr?'جاري التحديث...':'Fetching...');
         btn.disabled=true;
         try{
-            // تجاوز الكاش بالكامل (timestamp + random + headers)
-            const url = 'prices.json?force=' + Date.now() + '_' + Math.random();
+            // بناء رابط prices.json مع تجاوز الكاش
+            let url = './prices.json?force=' + Date.now() + '_' + Math.random() + '_' + Math.floor(Math.random()*10000);
+            // إذا كنا على GitHub Pages، قد نحتاج مسار مطلق
+            if(window.location.hostname.includes('github.io')) {
+                // نحاول استنتاج المسار: https://user.github.io/repo/prices.json
+                const pathParts = window.location.pathname.split('/');
+                if(pathParts.length >= 2) {
+                    const repoName = pathParts[1];
+                    url = `/${repoName}/prices.json?force=` + Date.now() + '_' + Math.random() + '_' + Math.floor(Math.random()*10000);
+                }
+            }
+            console.log('Fetching from URL:', url);
             const res=await fetch(url, {
                 cache: 'no-store',
                 headers: {
@@ -235,38 +245,42 @@
                     'Expires': '0'
                 }
             });
-            if(!res.ok) throw new Error('File not found');
+            if(!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
             const data=await res.json();
+            console.log('Received data:', data);
+            // عرض البيانات في رسالة للتأكد من وصولها
+            alert((isAr ? 'تم جلب الأسعار بنجاح:\n' : 'Prices fetched successfully:\n') + JSON.stringify(data, null, 2));
             
             let updated=0, change=0;
             portfolio.forEach(s=>{
-                if(data[s.name] && data[s.name] > 0){
-                    change += s.qty * (data[s.name] - s.current);
+                // البحث عن السهم في البيانات (دون حساسية حالة الأحرف)
+                const stockData = data[s.name] || data[s.name.toLowerCase()] || data[s.name.toUpperCase()];
+                if(stockData !== undefined && typeof stockData === 'number' && stockData > 0){
+                    change += s.qty * (stockData - s.current);
                     updated++;
                 }
             });
             
             if(updated > 0){
-                // تحديث الأسعار في المحفظة
+                // تحديث الأسعار
                 portfolio.forEach(s=>{
-                    if(data[s.name] && data[s.name] > 0) s.current = data[s.name];
+                    const stockData = data[s.name] || data[s.name.toLowerCase()] || data[s.name.toUpperCase()];
+                    if(stockData !== undefined && typeof stockData === 'number' && stockData > 0){
+                        s.current = stockData;
+                    }
                 });
                 
                 if(change !== 0){
-                    // تاريخ الأمس
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
                     const profitDate = yesterday.toISOString().slice(0,10);
-                    
-                    // إضافة الربح ليوم أمس مباشرة
                     dailyProfitsMap[profitDate] = (dailyProfitsMap[profitDate] || 0) + change;
                     renderHistoryDates();
                     if(!hideNumbers) updateChart();
                     saveToLocal();
-                    
-                    // تحديث العرض لو التقويم كان شايف يوم أمس
                     if(getSelectedDate() === profitDate) loadDailyProfitByDate();
-                    
                     refreshUI();
                     btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)')+' ('+(change>=0?'+':'')+change.toFixed(2)+')';
                 } else {
@@ -274,11 +288,12 @@
                     btn.innerHTML='⚠️ '+(isAr?'مفيش تغيير في الأسعار':'No price change');
                 }
             } else {
-                btn.innerHTML='⚠️ '+(isAr?'مفيش أسعار في الملف':'No prices found in file');
+                btn.innerHTML='⚠️ '+(isAr?'لا توجد أسعار مطابقة في الملف':'No matching prices in file');
             }
         } catch(e){
             console.error(e);
-            btn.innerHTML='❌ '+(isAr?'فشل التحديث - تأكد من وجود prices.json':'Update failed - Make sure prices.json exists');
+            alert((isAr ? 'خطأ في جلب الأسعار: ' : 'Error fetching prices: ') + e.message + '\nتأكد من وجود prices.json في نفس المجلد');
+            btn.innerHTML='❌ '+(isAr?'فشل التحديث - تأكد من وجود prices.json':'Update failed');
         }
         setTimeout(()=>{
             btn.innerHTML=currentLang==='ar'?'📡 تحديث تلقائي':'📡 Auto Update';
