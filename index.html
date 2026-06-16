@@ -218,15 +218,15 @@
         else alert(currentLang==='ar'?'لا توجد تغييرات':'No changes');
     };
 
-    // ========== Auto Update - يجيب من رابط GitHub مباشر ==========
+    // ========== Auto Update - تتجاوز الكاش بالكامل وتضيف الأرباح ليوم أمس ==========
     async function autoUpdatePrices(){
         const btn=document.getElementById('autoPriceBtn');
         const isAr=currentLang==='ar';
         btn.innerHTML='⏳ '+(isAr?'جاري التحديث...':'Fetching...');
         btn.disabled=true;
         try{
-            // رابط مباشر من GitHub (يشتغل من غير CORS)
-            const url = 'https://cdn.jsdelivr.net/gh/a7medhe4am/Wallet@main/prices.json?force=' + Date.now() + '_' + Math.random();
+            // تجاوز الكاش بالكامل (timestamp + random + headers)
+            const url = 'prices.json?force=' + Date.now() + '_' + Math.random();
             const res=await fetch(url, {
                 cache: 'no-store',
                 headers: {
@@ -240,30 +240,33 @@
             
             let updated=0, change=0;
             portfolio.forEach(s=>{
-                const stockData = data[s.name] || data[s.name.toLowerCase()] || data[s.name.toUpperCase()];
-                if(stockData !== undefined && typeof stockData === 'number' && stockData > 0){
-                    change += s.qty * (stockData - s.current);
+                if(data[s.name] && data[s.name] > 0){
+                    change += s.qty * (data[s.name] - s.current);
                     updated++;
                 }
             });
             
             if(updated > 0){
+                // تحديث الأسعار في المحفظة
                 portfolio.forEach(s=>{
-                    const stockData = data[s.name] || data[s.name.toLowerCase()] || data[s.name.toUpperCase()];
-                    if(stockData !== undefined && typeof stockData === 'number' && stockData > 0){
-                        s.current = stockData;
-                    }
+                    if(data[s.name] && data[s.name] > 0) s.current = data[s.name];
                 });
                 
                 if(change !== 0){
+                    // تاريخ الأمس
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
                     const profitDate = yesterday.toISOString().slice(0,10);
+                    
+                    // إضافة الربح ليوم أمس مباشرة
                     dailyProfitsMap[profitDate] = (dailyProfitsMap[profitDate] || 0) + change;
                     renderHistoryDates();
                     if(!hideNumbers) updateChart();
                     saveToLocal();
+                    
+                    // تحديث العرض لو التقويم كان شايف يوم أمس
                     if(getSelectedDate() === profitDate) loadDailyProfitByDate();
+                    
                     refreshUI();
                     btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)')+' ('+(change>=0?'+':'')+change.toFixed(2)+')';
                 } else {
@@ -271,11 +274,11 @@
                     btn.innerHTML='⚠️ '+(isAr?'مفيش تغيير في الأسعار':'No price change');
                 }
             } else {
-                btn.innerHTML='⚠️ '+(isAr?'لا توجد أسعار مطابقة':'No matching prices');
+                btn.innerHTML='⚠️ '+(isAr?'مفيش أسعار في الملف':'No prices found in file');
             }
         } catch(e){
             console.error(e);
-            btn.innerHTML='❌ '+(isAr?'فشل التحديث':'Update failed');
+            btn.innerHTML='❌ '+(isAr?'فشل التحديث - تأكد من وجود prices.json':'Update failed - Make sure prices.json exists');
         }
         setTimeout(()=>{
             btn.innerHTML=currentLang==='ar'?'📡 تحديث تلقائي':'📡 Auto Update';
@@ -486,7 +489,8 @@
         const dates=Object.keys(dailyProfitsMap).sort();if(!dates.length)return;
         let cum=0;const cd=dates.map(d=>{cum+=dailyProfitsMap[d];return parseFloat(cum.toFixed(2));});
         const last=cd[cd.length-1];
-        chartInstance=new Chart(canvas,{type:'line',data:{labels:dates,datasets:[{label:currentLang==='ar'?'العائد التراكمي (ج)':'Cumulative Return (EGP)',data:cd,borderColor:last>=0?'#10b981':'#ef4444',backgroundColor:last>=0?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)',fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:cd.map(v=>v>=0?'#10b981':'#ef4444')}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'top',labels:{font:{size:10},color:'#e2e8f0'}}},scales:{y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#334155'}},x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#334155'}}}}});    }
+        chartInstance=new Chart(canvas,{type:'line',data:{labels:dates,datasets:[{label:currentLang==='ar'?'العائد التراكمي (ج)':'Cumulative Return (EGP)',data:cd,borderColor:last>=0?'#10b981':'#ef4444',backgroundColor:last>=0?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)',fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:cd.map(v=>v>=0?'#10b981':'#ef4444')}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'top',labels:{font:{size:10},color:'#e2e8f0'}}},scales:{y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#334155'}},x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#334155'}}}}});
+    }
 
     window.processDeposit=function(){
         const a=parseFloat(document.getElementById('moneyAmount').value);
