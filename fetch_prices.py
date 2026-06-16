@@ -1,6 +1,7 @@
-import yfinance as yf
+import requests
 import json
 from datetime import datetime
+import time
 
 symbols = [
     "COMI","HRHO","OIH","CSAG","MEPA","OCDI","ARCC","NIPH","CCAP","UEGC","PHAR","AFMC","ORHD","EKHOA","SVCE",
@@ -24,24 +25,38 @@ symbols = [
 prices = {}
 today = datetime.utcnow().strftime('%Y-%m-%d')
 
+print(f"🔄 Fetching prices for {len(symbols)} symbols...")
+
 for sym in symbols:
-    ticker = sym + ".CA"
     try:
-        data = yf.download(ticker, period="5d", progress=False, auto_adjust=False)
-        if data is not None and not data.empty:
-            close = data["Close"].iloc[-1]
-            if hasattr(close, 'item'):
-                close = close.item()
-            price = round(float(close), 4)
-            if price > 0:
-                prices[sym] = price
-                print(f"✅ {sym}: {price}")
+        # استخدام Yahoo Finance API مباشرة (بدون yfinance)
+        ticker = sym + ".CA"
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            result = data.get("chart", {}).get("result", [])
+            if result:
+                meta = result[0].get("meta", {})
+                price = meta.get("regularMarketPrice")
+                if price and float(price) > 0:
+                    prices[sym] = round(float(price), 4)
+                    print(f"✅ {sym}: {prices[sym]}")
+                else:
+                    print(f"— {sym}: no price")
             else:
-                print(f"— {sym}: invalid price")
+                print(f"— {sym}: no data")
         else:
-            print(f"— {sym}: no data")
+            print(f"❌ {sym}: HTTP {response.status_code}")
+            
     except Exception as e:
-        print(f"❌ {sym}: {e}")
+        print(f"❌ {sym}: {str(e)[:50]}")
+    
+    time.sleep(0.3)  # تأخير بسيط عشان ما نضغطش API
 
 # نضيف تاريخ التحديث
 output = {"last_updated": today}
@@ -50,4 +65,4 @@ output.update(prices)
 with open("prices.json", "w") as f:
     json.dump(output, f, indent=2)
 
-print(f"\nDone: {len(prices)} prices saved, date: {today}")
+print(f"\n✅ Done: {len(prices)} prices saved, date: {today}")
