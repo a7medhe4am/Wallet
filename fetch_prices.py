@@ -1,8 +1,6 @@
-import requests
+import yfinance as yf
 import json
 from datetime import datetime
-import time
-import re
 
 symbols = [
     "COMI","HRHO","OIH","CSAG","MEPA","OCDI","ARCC","NIPH","CCAP","UEGC","PHAR","AFMC","ORHD","EKHOA","SVCE",
@@ -26,44 +24,24 @@ symbols = [
 prices = {}
 today = datetime.utcnow().strftime('%Y-%m-%d')
 
-print(f"🔄 Fetching prices for {len(symbols)} symbols...")
-
 for sym in symbols:
+    ticker = sym + ".CA"
     try:
-        # الطريقة الأولى: من Investing.com عبر API بديل
-        ticker = sym + ".CA"
-        
-        # استخدام Yahoo Finance مع محاولة الحصول على السعر الفوري
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "application/json"
-        }
-        response = requests.get(url, headers=headers, timeout=15)
-        
-        if response.status_code == 200:
-            data = response.json()
-            result = data.get("chart", {}).get("result", [])
-            if result:
-                meta = result[0].get("meta", {})
-                # نجيب السعر الفوري (regularMarketPrice) أو السعر السابق
-                price = meta.get("regularMarketPrice")
-                if not price:
-                    price = meta.get("previousClose")
-                if price and float(price) > 0:
-                    prices[sym] = round(float(price), 4)
-                    print(f"✅ {sym}: {prices[sym]}")
-                else:
-                    print(f"— {sym}: no valid price")
+        data = yf.download(ticker, period="5d", progress=False, auto_adjust=False)
+        if data is not None and not data.empty:
+            close = data["Close"].iloc[-1]
+            if hasattr(close, 'item'):
+                close = close.item()
+            price = round(float(close), 4)
+            if price > 0:
+                prices[sym] = price
+                print(f"✅ {sym}: {price}")
             else:
-                print(f"— {sym}: no data")
+                print(f"— {sym}: invalid price")
         else:
-            print(f"❌ {sym}: HTTP {response.status_code}")
-            
+            print(f"— {sym}: no data")
     except Exception as e:
-        print(f"❌ {sym}: {str(e)[:50]}")
-    
-    time.sleep(0.3)
+        print(f"❌ {sym}: {e}")
 
 # نضيف تاريخ التحديث
 output = {"last_updated": today}
@@ -72,4 +50,4 @@ output.update(prices)
 with open("prices.json", "w") as f:
     json.dump(output, f, indent=2)
 
-print(f"\n✅ Done: {len(prices)} prices saved, date: {today}")
+print(f"\nDone: {len(prices)} prices saved, date: {today}")
