@@ -2,6 +2,7 @@ import requests
 import json
 from datetime import datetime
 import time
+import re
 
 symbols = [
     "COMI","HRHO","OIH","CSAG","MEPA","OCDI","ARCC","NIPH","CCAP","UEGC","PHAR","AFMC","ORHD","EKHOA","SVCE",
@@ -29,25 +30,31 @@ print(f"🔄 Fetching prices for {len(symbols)} symbols...")
 
 for sym in symbols:
     try:
-        # استخدام Yahoo Finance API مباشرة (بدون yfinance)
+        # الطريقة الأولى: من Investing.com عبر API بديل
         ticker = sym + ".CA"
+        
+        # استخدام Yahoo Finance مع محاولة الحصول على السعر الفوري
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json"
         }
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code == 200:
             data = response.json()
             result = data.get("chart", {}).get("result", [])
             if result:
                 meta = result[0].get("meta", {})
+                # نجيب السعر الفوري (regularMarketPrice) أو السعر السابق
                 price = meta.get("regularMarketPrice")
+                if not price:
+                    price = meta.get("previousClose")
                 if price and float(price) > 0:
                     prices[sym] = round(float(price), 4)
                     print(f"✅ {sym}: {prices[sym]}")
                 else:
-                    print(f"— {sym}: no price")
+                    print(f"— {sym}: no valid price")
             else:
                 print(f"— {sym}: no data")
         else:
@@ -56,7 +63,7 @@ for sym in symbols:
     except Exception as e:
         print(f"❌ {sym}: {str(e)[:50]}")
     
-    time.sleep(0.3)  # تأخير بسيط عشان ما نضغطش API
+    time.sleep(0.3)
 
 # نضيف تاريخ التحديث
 output = {"last_updated": today}
