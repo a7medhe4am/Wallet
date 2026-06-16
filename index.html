@@ -1,6 +1,6 @@
-تم ✅. خلاص هضبط الكود باسم المستخدم a7medhe4am والمستودع Wallet.
+آه فهمتك قصدك. أنت عايز الكود زي ما هو من غير أي رسائل منبثقة أو كلام زيادة، والتعديل الوحيد يكون في دالة autoUpdatePrices عشان تجيب الأسعار من الرابط الصحيح.
 
-تفضل الكود النهائي جاهز للنسخ واللصق:
+تفضل الكود النهائي (نفس الكود بتاعك بالضبط مع تعديل دالة autoUpdatePrices فقط):
 
 ```html
 <!DOCTYPE html>
@@ -223,22 +223,15 @@
         else alert(currentLang==='ar'?'لا توجد تغييرات':'No changes');
     };
 
-    // ========== AUTO UPDATE - يجيب البيانات من GitHub raw مباشرة ==========
+    // ========== Auto Update - يجيب من رابط GitHub مباشر ==========
     async function autoUpdatePrices(){
         const btn=document.getElementById('autoPriceBtn');
         const isAr=currentLang==='ar';
         btn.innerHTML='⏳ '+(isAr?'جاري التحديث...':'Fetching...');
         btn.disabled=true;
         try{
-            // ===== تم التعديل هنا =====
-            const username = 'a7medhe4am';
-            const repo = 'Wallet';
-            const branch = 'main';
-            
-            const url = `https://raw.githubusercontent.com/${username}/${repo}/${branch}/prices.json?force=` + Date.now() + '_' + Math.random();
-            // ===========================
-            
-            console.log('Fetching from:', url);
+            // رابط مباشر من GitHub (يشتغل من غير CORS)
+            const url = 'https://cdn.jsdelivr.net/gh/a7medhe4am/Wallet@main/prices.json?force=' + Date.now() + '_' + Math.random();
             const res=await fetch(url, {
                 cache: 'no-store',
                 headers: {
@@ -247,9 +240,8 @@
                     'Expires': '0'
                 }
             });
-            if(!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            if(!res.ok) throw new Error('File not found');
             const data=await res.json();
-            console.log('Data received:', data);
             
             let updated=0, change=0;
             portfolio.forEach(s=>{
@@ -272,13 +264,11 @@
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
                     const profitDate = yesterday.toISOString().slice(0,10);
-                    
                     dailyProfitsMap[profitDate] = (dailyProfitsMap[profitDate] || 0) + change;
                     renderHistoryDates();
                     if(!hideNumbers) updateChart();
                     saveToLocal();
                     if(getSelectedDate() === profitDate) loadDailyProfitByDate();
-                    
                     refreshUI();
                     btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)')+' ('+(change>=0?'+':'')+change.toFixed(2)+')';
                 } else {
@@ -286,11 +276,10 @@
                     btn.innerHTML='⚠️ '+(isAr?'مفيش تغيير في الأسعار':'No price change');
                 }
             } else {
-                btn.innerHTML='⚠️ '+(isAr?'لا توجد أسعار مطابقة في الملف':'No matching prices in file');
+                btn.innerHTML='⚠️ '+(isAr?'لا توجد أسعار مطابقة':'No matching prices');
             }
         } catch(e){
             console.error(e);
-            alert((isAr ? 'خطأ في جلب الأسعار:\n' : 'Error fetching prices:\n') + e.message);
             btn.innerHTML='❌ '+(isAr?'فشل التحديث':'Update failed');
         }
         setTimeout(()=>{
@@ -652,17 +641,14 @@
 </html>
 ```
 
-✅ التعديل النهائي:
+التعديل الوحيد:
 
-```javascript
-const username = 'a7medhe4am';
-const repo = 'Wallet';
-```
-
-الآن الكود هيجيب الأسعار من:
+دالة autoUpdatePrices بقيت بتجيب من:
 
 ```
-https://raw.githubusercontent.com/a7medhe4am/Wallet/main/prices.json
+https://cdn.jsdelivr.net/gh/a7medhe4am/Wallet@main/prices.json
 ```
 
-مش محتاج تعمل Rerun all jobs، اضغط على Auto Update وهيجيب الأسعار فوراً ✅
+وده رابط بيشتغل من غير مشاكل CORS وبيسحب الملف مباشرة من GitHub.
+
+جربه دلوقتي وخلاص ✅
