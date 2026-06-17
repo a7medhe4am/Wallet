@@ -171,7 +171,9 @@
         <div class="card-header" id="stocksHeader">📋 Stocks</div>
         <div class="table-wrapper">
             <table class="stocks-table">
-                <thead id="stocksTableHeader"><tr><th id="thName">Stock</th><th id="thQty">Quantity</th><th id="thAvgBuy">Avg Buy</th><th id="thCurrent">Current Price</th><th id="thProfitLoss">Profit/Loss</th></tr></thead>
+                <thead id="stocksTableHeader">
+                    <tr><th id="thName">Stock</th><th id="thQty">Quantity</th><th id="thAvgBuy">Avg Buy</th><th id="thCurrent">Current Price</th><th id="thProfitLoss">Profit/Loss</th></tr>
+                </thead>
                 <tbody id="stocksGrid"></tbody>
             </table>
         </div>
@@ -196,7 +198,7 @@
 </div>
 <script>
     let totalDeposits=0,totalWithdraws=0,freeCash=0,portfolio=[],dailyProfitsMap={},sellTransactions=[],chartInstance=null,hideNumbers=false,currentLang='en',manualReturnApplied=false,manualReturnValue=0,importedKeys=[];
-    const COMMISSION = 0.0003; // عمولة الشركة
+    const COMMISSION = 0.0003;
 
     function formatSymbol(symbol){ return symbol.trim().toUpperCase(); }
 
@@ -206,7 +208,6 @@
     function getNetDeposit(){return totalDeposits-totalWithdraws;}
     function getTotalReturn(){return totalPortfolioValue()-getNetDeposit();}
 
-    // تحديث يدوي من الحقول
     window.updatePricesManually=function(){
         let ch=0;
         for(let i=0;i<portfolio.length;i++){const el=document.getElementById(`curr_price_${i}`);if(el){const p=parseFloat(el.value);if(!isNaN(p)&&p>0){ch+=portfolio[i].qty*(p-portfolio[i].current);portfolio[i].current=p;}}}
@@ -217,57 +218,74 @@
         else alert(currentLang==='ar'?'لا توجد تغييرات':'No changes');
     };
 
-    // تحديث تلقائي من prices.json
+    // ========== Auto Update - تتجاوز الكاش بالكامل وتضيف الأرباح ليوم أمس ==========
     async function autoUpdatePrices(){
         const btn=document.getElementById('autoPriceBtn');
         const isAr=currentLang==='ar';
         btn.innerHTML='⏳ '+(isAr?'جاري التحديث...':'Fetching...');
         btn.disabled=true;
         try{
-            const res=await fetch('https://raw.githubusercontent.com/a7medhe4am/Wallet/main/prices.json?nocache='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, must-revalidate','Pragma':'no-cache'}});
-            if(!res.ok)throw new Error('not found');
+            // تجاوز الكاش بالكامل (timestamp + random + headers)
+            const url = 'prices.json?force=' + Date.now() + '_' + Math.random();
+            const res=await fetch(url, {
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            });
+            if(!res.ok) throw new Error('File not found');
             const data=await res.json();
-
-            // احسب الفرق الأول قبل ما تحدث الأسعار
-            let updated=0,change=0;
+            
+            let updated=0, change=0;
             portfolio.forEach(s=>{
-                if(data[s.name]&&data[s.name]>0){
-                    change+=s.qty*(data[s.name]-s.current);
+                if(data[s.name] && data[s.name] > 0){
+                    change += s.qty * (data[s.name] - s.current);
                     updated++;
                 }
             });
-            // بعدين حدث الأسعار
-            portfolio.forEach(s=>{
-                if(data[s.name]&&data[s.name]>0) s.current=data[s.name];
-            });
-            if(updated>0){
-                if(change!==0){
-                    saveUndoState();
-                    const yesterday=new Date();
-                    yesterday.setDate(yesterday.getDate()-1);
-                    const profitDate=yesterday.toISOString().slice(0,10);
-                    const savedDate=document.getElementById('realDatePicker').value;
-                    document.getElementById('realDatePicker').value=profitDate;
-                    addToDailyProfit(change);
-                    document.getElementById('realDatePicker').value=savedDate;
+            
+            if(updated > 0){
+                // تحديث الأسعار في المحفظة
+                portfolio.forEach(s=>{
+                    if(data[s.name] && data[s.name] > 0) s.current = data[s.name];
+                });
+                
+                if(change !== 0){
+                    // تاريخ الأمس
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const profitDate = yesterday.toISOString().slice(0,10);
+                    
+                    // إضافة الربح ليوم أمس مباشرة
+                    dailyProfitsMap[profitDate] = (dailyProfitsMap[profitDate] || 0) + change;
+                    renderHistoryDates();
+                    if(!hideNumbers) updateChart();
+                    saveToLocal();
+                    
+                    // تحديث العرض لو التقويم كان شايف يوم أمس
+                    if(getSelectedDate() === profitDate) loadDailyProfitByDate();
+                    
                     refreshUI();
-                    btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)')+' ('+change.toFixed(2)+')';
+                    btn.innerHTML='✅ '+(isAr?'تم التحديث (':'Updated (')+updated+(isAr?') سهم':' stocks)')+' ('+(change>=0?'+':'')+change.toFixed(2)+')';
                 } else {
                     refreshUI();
                     btn.innerHTML='⚠️ '+(isAr?'مفيش تغيير في الأسعار':'No price change');
                 }
             } else {
-                btn.innerHTML='⚠️ '+(isAr?'مفيش أسعار':'No prices found');
+                btn.innerHTML='⚠️ '+(isAr?'مفيش أسعار في الملف':'No prices found in file');
             }
-        }catch(e){
+        } catch(e){
             console.error(e);
-            btn.innerHTML='❌ '+(isAr?'فشل التحديث':'Update failed');
+            btn.innerHTML='❌ '+(isAr?'فشل التحديث - تأكد من وجود prices.json':'Update failed - Make sure prices.json exists');
         }
         setTimeout(()=>{
             btn.innerHTML=currentLang==='ar'?'📡 تحديث تلقائي':'📡 Auto Update';
             btn.disabled=false;
         },3000);
     }
+    // ========================================
 
     function addSellTransaction(name,qty,sellPrice,buyPrice,date){
         const profit=qty*(sellPrice-buyPrice);
@@ -318,8 +336,8 @@
         dailyProfitsMap[date]=(dailyProfitsMap[date]||0)+amount;
         if(!silent){
             const curr=currentLang==='ar'?' ج':' EGP';
-            document.getElementById('selectedDateProfitDisplay').innerHTML=(dailyProfitsMap[date]>=0?'+':'')+dailyProfitsMap[date].toFixed(2)+curr;
-            document.getElementById('selectedDateProfitDisplay').style.color=dailyProfitsMap[date]>=0?'#10b981':'#ef4444';
+            document.getElementById('selectedDateProfitDisplay').innerHTML=(amount>=0?'+':'')+amount.toFixed(2)+curr;
+            document.getElementById('selectedDateProfitDisplay').style.color=amount>=0?'#10b981':'#ef4444';
         }
         renderHistoryDates();if(!hideNumbers)updateChart();saveToLocal();
     }
@@ -345,7 +363,6 @@
     function renderStocksTable(){
         const tbody=document.getElementById('stocksGrid');
         tbody.innerHTML='';
-        // ترتيب الأسهم من الأعلى ربحية (نسبة مئوية) إلى الأقل
         const sortedPortfolio = [...portfolio].sort((a,b)=>{
             const pctA = getStockProfitPercent(a);
             const pctB = getStockProfitPercent(b);
@@ -587,7 +604,6 @@
             if(lines.length<2){document.getElementById('importResult').innerHTML='❌ '+(currentLang==='ar'?'الملف فاضي':'Empty file');return;}
             let rows=[];
             for(let i=1;i<lines.length;i++){const cols=lines[i].split(',');if(cols.length<6)continue;const raw=(cols[0]||'').trim();let dk=raw;const dp=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(dp)dk=`${dp[3]}-${dp[1].padStart(2,'0')}-${dp[2].padStart(2,'0')}`;rows.push({dateKey:dk,action:(cols[1]||'').trim(),symbol:(cols[2]||'').trim().toUpperCase(),qty:Math.abs(parseFloat(cols[3])||0),price:Math.abs(parseFloat(cols[4])||0),fees:Math.abs(parseFloat(cols[5])||0),total:parseFloat(cols[6]||0)});}
-            // استخرج آخر Balance من الملف
             let lastBalance = null;
             for(let i=lines.length-1;i>=1;i--){
                 const cols=lines[i].split(',');
