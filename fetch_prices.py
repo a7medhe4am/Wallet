@@ -1,6 +1,7 @@
-import yfinance as yf
+import requests
 import json
 from datetime import datetime
+import time
 
 symbols = [
     "COMI","HRHO","OIH","CSAG","MEPA","OCDI","ARCC","NIPH","CCAP","UEGC","PHAR","AFMC","ORHD","EKHOA","SVCE",
@@ -24,24 +25,67 @@ symbols = [
 prices = {}
 today = datetime.utcnow().strftime('%Y-%m-%d')
 
-for sym in symbols:
-    ticker = sym + ".CA"
+print(f"🔄 Fetching prices for {len(symbols)} symbols...")
+
+def get_price_yahoo(symbol):
+    """جلب السعر من Yahoo Finance"""
     try:
-        data = yf.download(ticker, period="5d", progress=False, auto_adjust=False)
-        if data is not None and not data.empty:
-            close = data["Close"].iloc[-1]
-            if hasattr(close, 'item'):
-                close = close.item()
-            price = round(float(close), 4)
-            if price > 0:
-                prices[sym] = price
-                print(f"✅ {sym}: {price}")
-            else:
-                print(f"— {sym}: invalid price")
-        else:
-            print(f"— {sym}: no data")
-    except Exception as e:
-        print(f"❌ {sym}: {e}")
+        ticker = symbol + ".CA"
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            result = data.get("chart", {}).get("result", [])
+            if result:
+                meta = result[0].get("meta", {})
+                # نجيب السعر الفوري أو سعر الإغلاق السابق
+                price = meta.get("regularMarketPrice")
+                if not price:
+                    price = meta.get("previousClose")
+                if price and float(price) > 0:
+                    return round(float(price), 4)
+        return None
+    except:
+        return None
+
+def get_price_alpha(symbol):
+    """جلب السعر من Alpha Vantage (بديل)"""
+    try:
+        # استخدام API مجاني
+        url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}.CA&apikey=demo"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            quote = data.get("Global Quote", {})
+            price = quote.get("05. price")
+            if price and float(price) > 0:
+                return round(float(price), 4)
+        return None
+    except:
+        return None
+
+# جلب الأسعار
+for sym in symbols:
+    price = None
+    
+    # المحاولة الأولى: Yahoo Finance
+    price = get_price_yahoo(sym)
+    
+    # لو فشلت، جرب البديل
+    if not price:
+        price = get_price_alpha(sym)
+    
+    if price and price > 0:
+        prices[sym] = price
+        print(f"✅ {sym}: {price}")
+    else:
+        print(f"— {sym}: no price")
+    
+    time.sleep(0.3)  # تأخير عشان ما نضغطش API
 
 # نضيف تاريخ التحديث
 output = {"last_updated": today}
@@ -50,4 +94,4 @@ output.update(prices)
 with open("prices.json", "w") as f:
     json.dump(output, f, indent=2)
 
-print(f"\nDone: {len(prices)} prices saved, date: {today}")
+print(f"\n✅ Done: {len(prices)} prices saved, date: {today}")
