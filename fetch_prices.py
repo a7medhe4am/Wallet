@@ -1,7 +1,6 @@
-import requests
+import yfinance as yf
 import json
 from datetime import datetime
-import time
 
 symbols = [
     "COMI","HRHO","OIH","CSAG","MEPA","OCDI","ARCC","NIPH","CCAP","UEGC","PHAR","AFMC","ORHD","EKHOA","SVCE",
@@ -28,34 +27,21 @@ today = datetime.utcnow().strftime('%Y-%m-%d')
 for sym in symbols:
     ticker = sym + ".CA"
     try:
-        # استخدام API Yahoo Finance مباشرة
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            result = data.get("chart", {}).get("result", [])
-            if result:
-                meta = result[0].get("meta", {})
-                # جلب السعر الفوري
-                price = meta.get("regularMarketPrice")
-                if not price:
-                    price = meta.get("previousClose")
-                if price and float(price) > 0:
-                    price = round(float(price), 4)
-                    prices[sym] = price
-                    print(f"✅ {sym}: {price}")
-                else:
-                    print(f"— {sym}: invalid price")
+        data = yf.download(ticker, period="5d", progress=False, auto_adjust=False)
+        if data is not None and not data.empty:
+            close = data["Close"].iloc[-1]
+            if hasattr(close, 'item'):
+                close = close.item()
+            price = round(float(close), 4)
+            if price > 0:
+                prices[sym] = price
+                print(f"✅ {sym}: {price}")
             else:
-                print(f"— {sym}: no data")
+                print(f"— {sym}: invalid price")
         else:
-            print(f"❌ {sym}: HTTP {response.status_code}")
+            print(f"— {sym}: no data")
     except Exception as e:
         print(f"❌ {sym}: {e}")
-    
-    time.sleep(0.3)
 
 # نضيف تاريخ التحديث
 output = {"last_updated": today}
