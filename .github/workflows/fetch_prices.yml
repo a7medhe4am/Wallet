@@ -2,7 +2,7 @@ name: Fetch Stock Prices
 
 on:
   schedule:
-    - cron: '0 23 * * 0-4'  # 2 صباحاً بتوقيت القاهرة (UTC+3)
+    - cron: '0 3 * * 0-4'  # 2 صباحاً بتوقيت القاهرة (UTC+3)
     - cron: '0 1 * * 0-4'   # 4 صباحاً بتوقيت القاهرة (UTC+3)
   workflow_dispatch:
 
