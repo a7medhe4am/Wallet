@@ -195,6 +195,10 @@
         <div class="card-header" id="transactionsHeader">📋 Transactions (Buy/Sell)</div>
         <div id="transactionsList" style="max-height:250px;overflow-y:auto;"></div>
     </div>
+    <div class="card">
+        <div class="card-header" id="summaryHeader">📊 Stock Summary</div>
+        <div id="stockSummaryList"></div>
+    </div>
 </div>
 <script>
     let totalDeposits=0,totalWithdraws=0,freeCash=0,portfolio=[],dailyProfitsMap={},sellTransactions=[],chartInstance=null,hideNumbers=false,currentLang='en',manualReturnApplied=false,manualReturnValue=0,importedKeys=[];
@@ -226,7 +230,7 @@
         btn.disabled=true;
         try{
             // تجاوز الكاش بالكامل (timestamp + random + headers)
-            const url = 'prices.json?force=' + Date.now() + '_' + Math.random();
+            const url = 'https://raw.githubusercontent.com/a7medhe4am/Wallet/main/prices.json?nocache=' + Date.now();
             const res=await fetch(url, {
                 cache: 'no-store',
                 headers: {
@@ -287,6 +291,37 @@
     }
     // ========================================
 
+    function renderStockSummary(){
+        const c=document.getElementById('stockSummaryList');if(!c)return;
+        const isAr=currentLang==='ar';
+        const curr=isAr?' ج':' EGP';
+        const summary={};
+        sellTransactions.forEach(t=>{
+            if(!summary[t.name])summary[t.name]={buyQty:0,buyTotal:0,sellQty:0,sellTotal:0,profit:0};
+            if(t.type==='buy'){summary[t.name].buyQty+=t.qty;summary[t.name].buyTotal+=t.qty*t.price;}
+            else if(t.type==='sell'){summary[t.name].sellQty+=t.qty;summary[t.name].sellTotal+=t.qty*t.sellPrice;summary[t.name].profit+=t.profit;}
+        });
+        const names=Object.keys(summary).filter(n=>summary[n].sellQty>0);
+        if(!names.length){c.innerHTML='<div class="label-sm" style="text-align:center;">'+(isAr?'لا توجد صفقات مكتملة':'No completed trades')+'</div>';return;}
+        c.innerHTML=names.map(name=>{
+            const s=summary[name];
+            const avgBuy=s.buyQty>0?s.buyTotal/s.buyQty:0;
+            const avgSell=s.sellQty>0?s.sellTotal/s.sellQty:0;
+            const profit=s.profit;
+            const pct=avgBuy>0?((avgSell-avgBuy)/avgBuy)*100:0;
+            const col=profit>=0?'#10b981':'#ef4444';
+            const icon=profit>=0?'💰':'💸';
+            return `<div style="background:#0f172a;border-radius:12px;padding:12px;margin-bottom:8px;border:1px solid #334155;">
+                <div style="font-weight:700;color:#e2e8f0;margin-bottom:6px;">${name}</div>
+                <div style="font-size:12px;color:#94a3b8;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                    <span>🟢 ${isAr?'شراء':'Buy'}: <strong style="color:#10b981;">${avgBuy.toFixed(4)}${curr}</strong></span>
+                    <span>🔴 ${isAr?'بيع':'Sell'}: <strong style="color:#ef4444;">${avgSell.toFixed(4)}${curr}</strong></span>
+                    <span>${icon} <strong style="color:${col};">${profit>=0?'+':''}${profit.toFixed(2)}${curr} (${pct>=0?'+':''}${pct.toFixed(2)}%)</strong></span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
     function addSellTransaction(name,qty,sellPrice,buyPrice,date){
         const profit=qty*(sellPrice-buyPrice);
         const profitPercent=(profit/(qty*buyPrice))*100;
@@ -322,6 +357,7 @@
         });
         if(hideNumbers){document.querySelectorAll('.transaction-details').forEach(e=>e.style.display='none');document.querySelectorAll('.transaction-qty').forEach(e=>e.style.display='none');}
         else{document.querySelectorAll('.transaction-details').forEach(e=>e.style.display='block');document.querySelectorAll('.transaction-qty').forEach(e=>e.style.display='inline');}
+        renderStockSummary();
     }
 
     window.toggleHideNumbers=function(){
@@ -552,6 +588,7 @@
         document.getElementById('historyHeader').innerHTML=isAr?'📆 سجل الأرباح':'📆 Profit History';
         document.getElementById('chartHeader').innerHTML=isAr?'📊 العائد التراكمي':'📊 Cumulative Return';
         document.getElementById('transactionsHeader').innerHTML=isAr?'📋 المعاملات (شراء وبيع)':'📋 Transactions (Buy/Sell)';
+        document.getElementById('summaryHeader').innerHTML=isAr?'📊 ملخص الصفقات':'📊 Stock Summary';
         document.getElementById('thName').innerHTML=isAr?'السهم':'Stock';
         document.getElementById('thQty').innerHTML=isAr?'الكمية':'Quantity';
         document.getElementById('thAvgBuy').innerHTML=isAr?'متوسط الشراء':'Avg Buy';
