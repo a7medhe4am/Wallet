@@ -195,13 +195,15 @@
         <div class="card-header" id="transactionsHeader">📋 Transactions (Buy/Sell)</div>
         <div id="transactionsList" style="max-height:250px;overflow-y:auto;"></div>
     </div>
+    <!-- ====== كارت ملخص الأسهم (جديد) ====== -->
     <div class="card">
-        <div class="card-header" id="summaryHeader">📊 Stock Summary</div>
-        <div id="stockSummaryList"></div>
+        <div class="card-header" id="summaryHeader">📊 Stock Summary (Buy/Sell)</div>
+        <div id="stockSummaryContainer" style="font-size:13px;max-height:300px;overflow-y:auto;"></div>
     </div>
+    <!-- ================================= -->
 </div>
 <script>
-    let totalDeposits=0,totalWithdraws=0,freeCash=0,portfolio=[],dailyProfitsMap={},sellTransactions=[],chartInstance=null,hideNumbers=false,currentLang='en',manualReturnApplied=false,manualReturnValue=0,importedKeys=[];
+    let totalDeposits=0,totalWithdraws=0,freeCash=0,portfolio=[],dailyProfitsMap={},sellTransactions=[],chartInstance=null,hideNumbers=false,currentLang='en',manualReturnApplied=false,manualReturnValue=0,importedKeys=[],stockSummary={};
     const COMMISSION = 0.0003;
 
     function formatSymbol(symbol){ return symbol.trim().toUpperCase(); }
@@ -230,7 +232,7 @@
         btn.disabled=true;
         try{
             // تجاوز الكاش بالكامل (timestamp + random + headers)
-            const url = 'https://raw.githubusercontent.com/a7medhe4am/Wallet/main/prices.json?nocache=' + Date.now();
+            const url = 'prices.json?force=' + Date.now() + '_' + Math.random();
             const res=await fetch(url, {
                 cache: 'no-store',
                 headers: {
@@ -291,35 +293,92 @@
     }
     // ========================================
 
-    function renderStockSummary(){
-        const c=document.getElementById('stockSummaryList');if(!c)return;
-        const isAr=currentLang==='ar';
-        const curr=isAr?' ج':' EGP';
-        const summary={};
-        sellTransactions.forEach(t=>{
-            if(!summary[t.name])summary[t.name]={buyQty:0,buyTotal:0,sellQty:0,sellTotal:0,profit:0};
-            if(t.type==='buy'){summary[t.name].buyQty+=t.qty;summary[t.name].buyTotal+=t.qty*t.price;}
-            else if(t.type==='sell'){summary[t.name].sellQty+=t.qty;summary[t.name].sellTotal+=t.qty*t.sellPrice;summary[t.name].profit+=t.profit;}
-        });
-        const names=Object.keys(summary).filter(n=>summary[n].sellQty>0);
-        if(!names.length){c.innerHTML='<div class="label-sm" style="text-align:center;">'+(isAr?'لا توجد صفقات مكتملة':'No completed trades')+'</div>';return;}
-        c.innerHTML=names.map(name=>{
-            const s=summary[name];
-            const avgBuy=s.buyQty>0?s.buyTotal/s.buyQty:0;
-            const avgSell=s.sellQty>0?s.sellTotal/s.sellQty:0;
-            const profit=s.profit;
-            const pct=avgBuy>0?((avgSell-avgBuy)/avgBuy)*100:0;
-            const col=profit>=0?'#10b981':'#ef4444';
-            const icon=profit>=0?'💰':'💸';
-            return `<div style="background:#0f172a;border-radius:12px;padding:12px;margin-bottom:8px;border:1px solid #334155;">
-                <div style="font-weight:700;color:#e2e8f0;margin-bottom:6px;">${name}</div>
-                <div style="font-size:12px;color:#94a3b8;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-                    <span>🟢 ${isAr?'شراء':'Buy'}: <strong style="color:#10b981;">${avgBuy.toFixed(4)}${curr}</strong></span>
-                    <span>🔴 ${isAr?'بيع':'Sell'}: <strong style="color:#ef4444;">${avgSell.toFixed(4)}${curr}</strong></span>
-                    <span>${icon} <strong style="color:${col};">${profit>=0?'+':''}${profit.toFixed(2)}${curr} (${pct>=0?'+':''}${pct.toFixed(2)}%)</strong></span>
+    // ====== دالة تحديث الملخص من الـ Transactions ======
+    function updateStockSummaryFromTransactions() {
+        // إعادة تعيين الملخص
+        stockSummary = {};
+        
+        // المرور على كل المعاملات
+        for (const t of sellTransactions) {
+            const name = t.name;
+            if (!stockSummary[name]) {
+                stockSummary[name] = {
+                    buyQty: 0,
+                    buyTotal: 0,
+                    sellQty: 0,
+                    sellTotal: 0,
+                    profit: 0
+                };
+            }
+            
+            if (t.type === 'buy') {
+                stockSummary[name].buyQty += t.qty;
+                stockSummary[name].buyTotal += t.total; // t.total = qty * price
+            } else if (t.type === 'sell') {
+                stockSummary[name].sellQty += t.qty;
+                stockSummary[name].sellTotal += t.qty * t.sellPrice;
+                stockSummary[name].profit += t.profit || 0;
+            }
+        }
+    }
+
+    // ====== دالة عرض ملخص الأسهم ======
+    function renderStockSummary() {
+        const container = document.getElementById('stockSummaryContainer');
+        if (!container) return;
+        container.innerHTML = '';
+
+        // تحديث الملخص من المعاملات أولاً
+        updateStockSummaryFromTransactions();
+
+        const names = Object.keys(stockSummary);
+        if (!names.length) {
+            container.innerHTML = '<div class="label-sm" style="text-align:center;color:#94a3b8;">' + (currentLang === 'ar' ? 'لا توجد بيانات' : 'No data') + '</div>';
+            return;
+        }
+
+        let html = '';
+        for (const name of names) {
+            const s = stockSummary[name];
+            const buyQty = s.buyQty || 0;
+            const sellQty = s.sellQty || 0;
+            const buyTotal = s.buyTotal || 0;
+            const sellTotal = s.sellTotal || 0;
+            const profit = s.profit || 0;
+
+            // اعرض فقط لو فيه شراء أو بيع
+            if (buyQty === 0 && sellQty === 0) continue;
+
+            const avgBuy = buyQty > 0 ? buyTotal / buyQty : 0;
+            const avgSell = sellQty > 0 ? sellTotal / sellQty : 0;
+            const profitPercent = buyTotal > 0 ? (profit / buyTotal) * 100 : 0;
+            const netQty = buyQty - sellQty;
+            const color = profit >= 0 ? '#10b981' : '#ef4444';
+            const sign = profit >= 0 ? '+' : '';
+            const curr = currentLang === 'ar' ? ' ج' : ' EGP';
+
+            html += `
+                <div style="background:#0f172a;border-radius:12px;padding:12px;margin-bottom:8px;border:1px solid #334155;">
+                    <div style="font-weight:700;color:#e2e8f0;font-size:14px;">${name}</div>
+                    <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:12px;color:#94a3b8;flex-wrap:wrap;gap:4px;">
+                        <span>${currentLang === 'ar' ? '🟢 إجمالي الشراء' : '🟢 Total Buy'}: <span style="color:#e2e8f0;">${buyQty} ${currentLang === 'ar' ? 'سهم' : 'shares'}</span></span>
+                        <span>${currentLang === 'ar' ? 'متوسط الشراء' : 'Avg Buy'}: <span style="color:#e2e8f0;">${avgBuy.toFixed(4)} ${curr}</span></span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:2px;font-size:12px;color:#94a3b8;flex-wrap:wrap;gap:4px;">
+                        <span>${currentLang === 'ar' ? '🔴 إجمالي البيع' : '🔴 Total Sell'}: <span style="color:#e2e8f0;">${sellQty} ${currentLang === 'ar' ? 'سهم' : 'shares'}</span></span>
+                        <span>${currentLang === 'ar' ? 'متوسط البيع' : 'Avg Sell'}: <span style="color:#e2e8f0;">${avgSell.toFixed(4)} ${curr}</span></span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:2px;font-size:12px;color:#94a3b8;flex-wrap:wrap;gap:4px;">
+                        <span>${currentLang === 'ar' ? '📦 المتبقي' : '📦 Remaining'}: <span style="color:#e2e8f0;">${netQty} ${currentLang === 'ar' ? 'سهم' : 'shares'}</span></span>
+                        <span>${currentLang === 'ar' ? 'إجمالي الربح' : 'Total Profit'}: <span style="color:${color};">${sign}${profit.toFixed(2)} ${curr}</span></span>
+                    </div>
+                    <div style="font-weight:700;font-size:16px;margin-top:4px;color:${color};">
+                        ${sign}${profit.toFixed(2)} ${curr} (${sign}${profitPercent.toFixed(2)}%)
+                    </div>
                 </div>
-            </div>`;
-        }).join('');
+            `;
+        }
+        container.innerHTML = html || '<div class="label-sm" style="text-align:center;color:#94a3b8;">' + (currentLang === 'ar' ? 'لا توجد عمليات' : 'No transactions') + '</div>';
     }
 
     function addSellTransaction(name,qty,sellPrice,buyPrice,date){
@@ -327,12 +386,16 @@
         const profitPercent=(profit/(qty*buyPrice))*100;
         sellTransactions.unshift({type:'sell',name,qty,sellPrice,buyPrice,profit,profitPercent,date,timestamp:Date.now()});
         while(sellTransactions.length>100)sellTransactions.pop();
-        renderSellTransactions();saveToLocal();
+        renderSellTransactions();
+        renderStockSummary(); // تحديث الملخص
+        saveToLocal();
     }
     function addBuyTransaction(name,qty,price,date){
         sellTransactions.unshift({type:'buy',name,qty,price,total:qty*price,date,timestamp:Date.now()});
         while(sellTransactions.length>100)sellTransactions.pop();
-        renderSellTransactions();saveToLocal();
+        renderSellTransactions();
+        renderStockSummary(); // تحديث الملخص
+        saveToLocal();
     }
 
     function renderSellTransactions(){
@@ -357,7 +420,6 @@
         });
         if(hideNumbers){document.querySelectorAll('.transaction-details').forEach(e=>e.style.display='none');document.querySelectorAll('.transaction-qty').forEach(e=>e.style.display='none');}
         else{document.querySelectorAll('.transaction-details').forEach(e=>e.style.display='block');document.querySelectorAll('.transaction-qty').forEach(e=>e.style.display='inline');}
-        renderStockSummary();
     }
 
     window.toggleHideNumbers=function(){
@@ -499,7 +561,9 @@
         document.getElementById('portfolioValue').innerHTML=fmt(totalPortfolioValue());
         const ret=getTotalReturn(),el=document.getElementById('totalReturn');
         el.innerHTML=(ret>=0?'+':'')+fmt(ret);el.className='value-large '+(ret>=0?'green':'red');
-        renderStocksTable();saveToLocal();
+        renderStocksTable();
+        renderStockSummary(); // عرض ملخص الأسهم
+        saveToLocal();
     }
 
     window.applyManualReturn=function(){
@@ -542,7 +606,7 @@
     window.resetWallet=function(){document.getElementById('resetModal').classList.add('active');};
     window.closeResetModal=function(){document.getElementById('resetModal').classList.remove('active');};
     window.confirmReset=function(){
-        totalDeposits=0;totalWithdraws=0;freeCash=0;portfolio=[];dailyProfitsMap={};sellTransactions=[];importedKeys=[];manualReturnApplied=false;manualReturnValue=0;
+        totalDeposits=0;totalWithdraws=0;freeCash=0;portfolio=[];dailyProfitsMap={};sellTransactions=[];importedKeys=[];manualReturnApplied=false;manualReturnValue=0;stockSummary={};
         localStorage.removeItem('portfolioFinalDark_v10');
         if(chartInstance){chartInstance.destroy();chartInstance=null;}
         closeResetModal();
@@ -588,7 +652,7 @@
         document.getElementById('historyHeader').innerHTML=isAr?'📆 سجل الأرباح':'📆 Profit History';
         document.getElementById('chartHeader').innerHTML=isAr?'📊 العائد التراكمي':'📊 Cumulative Return';
         document.getElementById('transactionsHeader').innerHTML=isAr?'📋 المعاملات (شراء وبيع)':'📋 Transactions (Buy/Sell)';
-        document.getElementById('summaryHeader').innerHTML=isAr?'📊 ملخص الصفقات':'📊 Stock Summary';
+        document.getElementById('summaryHeader').innerHTML=isAr?'📊 ملخص الأسهم (شراء/بيع)':'📊 Stock Summary (Buy/Sell)';
         document.getElementById('thName').innerHTML=isAr?'السهم':'Stock';
         document.getElementById('thQty').innerHTML=isAr?'الكمية':'Quantity';
         document.getElementById('thAvgBuy').innerHTML=isAr?'متوسط الشراء':'Avg Buy';
@@ -617,11 +681,11 @@
     }
 
     function saveToLocal(){
-        localStorage.setItem('portfolioFinalDark_v10',JSON.stringify({totalDeposits,totalWithdraws,freeCash,portfolio,dailyProfitsMap,sellTransactions,importedKeys,lang:currentLang,hideNumbers,manualReturnApplied,manualReturnValue}));
+        localStorage.setItem('portfolioFinalDark_v10',JSON.stringify({totalDeposits,totalWithdraws,freeCash,portfolio,dailyProfitsMap,sellTransactions,importedKeys,lang:currentLang,hideNumbers,manualReturnApplied,manualReturnValue,stockSummary}));
     }
     function loadFromLocal(){
         const s=localStorage.getItem('portfolioFinalDark_v10');
-        if(s){try{const d=JSON.parse(s);totalDeposits=d.totalDeposits||0;totalWithdraws=d.totalWithdraws||0;freeCash=d.freeCash||0;portfolio=d.portfolio||[];dailyProfitsMap=d.dailyProfitsMap||{};sellTransactions=d.sellTransactions||[];importedKeys=d.importedKeys||[];if(d.lang)currentLang=d.lang;if(d.hideNumbers!==undefined)hideNumbers=d.hideNumbers;if(d.manualReturnApplied!==undefined)manualReturnApplied=d.manualReturnApplied;if(d.manualReturnValue!==undefined)manualReturnValue=d.manualReturnValue;}catch(e){}}
+        if(s){try{const d=JSON.parse(s);totalDeposits=d.totalDeposits||0;totalWithdraws=d.totalWithdraws||0;freeCash=d.freeCash||0;portfolio=d.portfolio||[];dailyProfitsMap=d.dailyProfitsMap||{};sellTransactions=d.sellTransactions||[];importedKeys=d.importedKeys||[];if(d.lang)currentLang=d.lang;if(d.hideNumbers!==undefined)hideNumbers=d.hideNumbers;if(d.manualReturnApplied!==undefined)manualReturnApplied=d.manualReturnApplied;if(d.manualReturnValue!==undefined)manualReturnValue=d.manualReturnValue;if(d.stockSummary)stockSummary=d.stockSummary;}catch(e){}}
         document.documentElement.lang=currentLang;document.documentElement.dir=currentLang==='ar'?'rtl':'ltr';
         if(hideNumbers)document.body.classList.add('hide-numbers');
         if(manualReturnApplied){document.getElementById('manualReturnCard').style.opacity='0.6';document.getElementById('manualReturnAmount').disabled=true;document.getElementById('applyManualReturnBtn').disabled=true;document.getElementById('applyManualReturnBtn').style.opacity='0.5';document.getElementById('manualReturnDone').style.display='inline-block';}
